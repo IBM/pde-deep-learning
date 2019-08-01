@@ -3,29 +3,32 @@ from collections import defaultdict
 """ Utility methods for retrieving data from a MongoDB.
 
 Description:
-    This module implements utility functions for retrieving data from a Mongo database.
+    This module implements utility functions for retrieving data from a 
+    Mongo database.
 
 -*- coding: utf-8 -*-
 
 Legal:
     (C) Copyright IBM 2018.
-    
+
     This code is licensed under the Apache License, Version 2.0. You may
-    obtain a copy of this license in the LICENSE.txt file in the root directory
-    of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
-    
+    obtain a copy of this license in the LICENSE.txt file in the root 
+    directory of this source tree or at 
+    http://www.apache.org/licenses/LICENSE-2.0.
+
     Any modifications or derivative works of this code must retain this
-    copyright notice, and modified files need to carry a notice indicating
-    that they have been altered from the originals.
+    copyright notice, and modified files need to carry a notice 
+    indicating that they have been altered from the originals.
 
     IBM-Review-Requirement: Art30.3
-    Please note that the following code was developed for the project VaVeL at
-    IBM Research -- Ireland, funded by the European Union under the
-    Horizon 2020 Program.
-    The project started on December 1st, 2015 and was completed by December 1st,
-    2018. Thus, in accordance with Article 30.3 of the Multi-Beneficiary General
-    Model Grant Agreement of the Program, there are certain limitations in force 
-    up to December 1st, 2022. For further details please contact Jakub Marecek
+    Please note that the following code was developed for the project 
+    VaVeL at IBM Research -- Ireland, funded by the European Union under 
+    the Horizon 2020 Program.
+    The project started on December 1st, 2015 and was completed by 
+    December 1st, 2018. Thus, in accordance with Article 30.3 of the 
+    Multi-Beneficiary General Model Grant Agreement of the Program, 
+    there are certain limitations in force  up to December 1st, 2022. 
+    For further details please contact Jakub Marecek 
     (jakub.marecek@ie.ibm.com) or Gal Weiss (wgal@ie.ibm.com).
 
 If you use the code, please cite our paper:
@@ -35,15 +38,16 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 05 - 05
+    2019 - 08 - 01
 
 """
 
 
 def get_weather_data(collection_weather, date_start, date_end):
     """
-        Collects weather data from the collection_weather between the dates
-        date_start and date_end.
+        Collects weather data from the collection_weather between the
+        dates date_start and date_end.
+
     :param collection_weather: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
@@ -67,7 +71,8 @@ def get_weather_data(collection_weather, date_start, date_end):
     weather_data = {}
     for entry in collection_weather.aggregate(pipeline):
         weather_data[entry['_id']['timestamp']] = [entry['wind_dir'],
-                                                   entry['wind_speed'],
+                                                   entry['wind_speed'] / 3.6,
+                                                   # km/h to m/s
                                                    entry['wind_dir_std'],
                                                    entry['temp']]
     return weather_data
@@ -75,8 +80,10 @@ def get_weather_data(collection_weather, date_start, date_end):
 
 def get_traffic_volumes(collection_traffic, date_start, date_end, links):
     """
-        Collects traffic data from the collection_traffic between the dates
-        date_start and date_end. It aggregates the traffic volumes for all links.
+        Collects traffic data from the collection_traffic between the
+        dates date_start and date_end. It aggregates the traffic volumes
+        for all links.
+
     :param collection_traffic: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
@@ -108,7 +115,8 @@ def get_traffic_volumes(collection_traffic, date_start, date_end, links):
             'traffic_volume': {'$sum': '$vehicle_count'}
         }}]
     volumes = defaultdict(dict)
-    for entry in collection_traffic.aggregate(traffic_pipeline, allowDiskUse=True):
+    for entry in collection_traffic.aggregate(traffic_pipeline,
+                                              allowDiskUse=True):
         timestamp = entry['_id']['timestamp']
         link = tuple(entry['_id']['link'])
         volume = entry['traffic_volume']
@@ -116,14 +124,19 @@ def get_traffic_volumes(collection_traffic, date_start, date_end, links):
     return volumes
 
 
-def get_background_pollution(collection_measurements, date_start, date_end):
+def get_background_pollution(
+        collection_measurements, date_start, date_end, method='avg'
+):
     """
-        Collects measurement data from the collection_measurement between the dates
-        date_start and date_end. It aggregates the average value of all stations.
+        Collects measurement data from the collection_measurement
+        between the dates date_start and date_end. It aggregates the
+        average value of all stations.
+
     :param collection_measurements: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
-    :return: {timestamp: {pollutant: average value}}
+    :param method:
+    :return: {timestamp: {pollutant: value}}
     """
     pipeline = [
         {'$match': {
@@ -136,7 +149,7 @@ def get_background_pollution(collection_measurements, date_start, date_end):
         {'$group': {
             '_id': {'timestamp': '$timestamp',
                     'pollutant': '$pollutant'},
-            'value': {'$avg': '$value'}
+            'value': {'$' + method: '$value'}
         }}
     ]
     background = defaultdict(dict)
@@ -148,15 +161,18 @@ def get_background_pollution(collection_measurements, date_start, date_end):
     return background
 
 
-def get_station_measurements(collection_measurements, date_start, date_end, station_name):
+def get_station_measurements(
+        collection_measurements, date_start, date_end, station_name
+):
     """
-        Collects measurement data from the collection_measurement between the dates
-        date_start and date_end for a specific station
+        Collects measurement data from the collection_measurement
+        between the dates date_start and date_end for a specific station.
+
     :param collection_measurements: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
     :param station_name: name of the station
-    :return: {timestamp: {pollutant: average value}}
+    :return: {timestamp: {pollutant: value}}
     """
     pipeline = [
         {'$match': {
@@ -177,47 +193,40 @@ def get_station_measurements(collection_measurements, date_start, date_end, stat
     return measurements
 
 
-def get_caline_estimates(collection_caline_estimates, date_start, date_end, run_tag,
-                         receptor_coords=None):
+def get_caline_estimates(
+        collection_caline_estimates, date_start, date_end,
+        receptor_coords=None, **kwargs
+):
     """
-        Collects pollution estimate data from the collection_pollution_estimates between
-        the dates date_start and date_end of a the run corresponding to run_tag
+        Collects pollution estimate data from the
+        collection_pollution_estimates between the dates date_start and
+        date_end of a the run corresponding to run_tag
+
     :param collection_caline_estimates: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
-    :param run_tag: identifier for Caline run
-    :param receptor_coords: (optional) if not None, it returns the timeline of Caline estimates
-                            for that receptor coordinate only.
+    :param kwargs: Caline run identifiers
+    :param receptor_coords: (optional) if not None, it returns the
+                            timeline of Caline estimates for that
+                            receptor coordinate only.
     :return: if receptor_coords is None:
                  caline_estimates = {timestamp: {coord: {pollutant: value}}}
              else:
                  caline_estimates = {timestamp: {pollutant: value}}
-             receptor_list = [(lat, lon)]
+             receptor_list = [coord]
     """
     caline_estimates = {}  # see docstring
     receptor_list = []  # [(lat, lon)]
 
-    if receptor_coords is None:
-        pipeline = [
-            {'$match': {
-                '$and': [
-                    {'timestamp': {'$gte': date_start.timestamp()}},
-                    {'timestamp': {'$lte': date_end.timestamp()}},
-                    {'run_tag': run_tag}
-                ]
-            }}
-        ]
-    else:
-        pipeline = [
-            {'$match': {
-                '$and': [
-                    {'timestamp': {'$gte': date_start.timestamp()}},
-                    {'timestamp': {'$lte': date_end.timestamp()}},
-                    {'run_tag': run_tag},
-                    {'coord': receptor_coords}
-                ]
-            }}
-        ]
+    filter_list = [
+        {'timestamp': {'$gte': date_start.timestamp()}},
+        {'timestamp': {'$lte': date_end.timestamp()}}
+    ]
+    if receptor_coords is not None:
+        filter_list.append({'coord': receptor_coords})
+    filter_list += [{k: v} for k, v in kwargs.items()]
+
+    pipeline = [{'$match': {'$and': filter_list}}]
 
     for caline_entry in collection_caline_estimates.aggregate(pipeline):
         timestamp = caline_entry['timestamp']
@@ -238,37 +247,108 @@ def get_caline_estimates(collection_caline_estimates, date_start, date_end, run_
     return caline_estimates, receptor_list
 
 
-def get_utilities_from_collection(collection_util, run_tag=None, mesh_size=12):
+def db_util_entry_to_dict(entry, tiles=None):
+    """
+        Reshapes the retrieved db utilities collection entry into the
+        format used by the scripts.
+
+    :param entry: utilities dict that was retrieved from a mongo db collection
+    :param tiles: list of tiles
+    :return: utilities dict as used by all scripts.
+    """
+    util = dict()
+    if tiles is None:
+        tiles = [tile[0] for tile in entry['domain_dict']]
+
+    # different treatment for different entries
+    tuple_list = ['links_in_area', 'links_dict',
+                  'receptors_index']
+    dict_list = ['emitters_dict', 'emitters_dict_cart',
+                 'receptors_dict', 'receptors_dict_cart',
+                 'norm_emitters', 'norm_receptors',
+                 'domain_neighbors']
+    dict_dict_list = ['intersections']
+
+    for key, value in entry.items():
+        if key == '_id':
+            continue
+        elif key in tuple_list:
+            util[key] = {tuple(k): v for k, v in value}
+        elif key in dict_list:
+            util[key] = {k: v for k, v in value if k in tiles}
+        elif key in dict_dict_list:
+            util[key] = {k: {kv: vv for kv, vv in v if kv in tiles}
+                         for k, v in value if k in tiles}
+        elif key == 'domain_dict':
+            util[key] = {
+                k: {kv: ([tuple(l) for l in vv] if kv == 'links' else vv)
+                    for kv, vv in v.items()}
+                for k, v in value if k in tiles
+            }
+        else:  # if key == 'run_tag' or key == 'bounding_box' or something else
+            util[key] = value
+
+    # update link entries to select only the ones that are in the
+    # selected tiles
+    util['links_in_area'] = {
+        link: coords
+        for link, coords in util['links_in_area'].items()
+        if any([link in util['domain_dict'][tile]['links'] for tile in tiles])
+    }
+    util['links_dict'] = {}
+    for tile, values in util['domain_dict'].items():
+        for link in values['links']:
+            util['links_dict'][tuple(link)] = [tile]
+
+    return util
+
+
+def util_dict_to_db_entry(util):
+    """
+        Reshapes the utility dict into a dict over lists as writing the
+        util dict into a mongo db throws the error
+        bson.errors.InvalidDocument: documents must have only string keys!
+
+    :param util: utility dictionary
+    :return: dictionary that can be inserted into a mongo db.
+    """
+    dict_list = ['links_in_area', 'links_dict',
+                 'emitters_dict', 'emitters_dict_cart',
+                 'receptors_dict', 'receptors_dict_cart',
+                 'norm_emitters', 'norm_receptors',
+                 'domain_neighbors', 'intersections',
+                 'domain_dict', 'receptors_index']
+    entry = {
+        key: ([
+            (k, [(kk, vv) for kk, vv in v.items()]
+                if key == 'intersections' else v
+             )
+            for k, v in values.items()
+            ]
+            if key in dict_list else values
+        )
+        for key, values in util.items()}
+    return entry
+
+
+def get_utilities_from_collection(collection_util, **kwargs):
     """
         Retrieves utility information from collection.
+        Assumes that kwarg tags give unique identifiers for the utility
+        information. If multiple entries are found, the first one is
+        returned.
+
     :param collection_util: MongoDB collection
-    :param run_tag: (str)
-    :param mesh_size: (int) number of sub-domains, i.e. length of domain_dict
     :return: (dict) of utility information
     """
-    if run_tag is not None:
-        util = collection_util.find({'run_tag': run_tag})
-    else:
-        util = collection_util.find({'domain_dict': {'$size': mesh_size}})
-    utilities = dict()
-    if util.count():
-        for key, value in util[0].items():
-            if key == '_id':
-                continue
-            elif key == 'run_tag' or key == 'bounding_box':
-                utilities[key] = value
-            elif key == 'intersections':
-                utilities[key] = {tuple(k) if isinstance(k, list) else k: {kv: vv for kv, vv in v}
-                                  for k, v in value}
-            else:
-                utilities[key] = {tuple(k) if isinstance(k, list) else k: v
-                                  for k, v in value}
-
-        utilities['domain_dict'] = {id: {key: ([tuple(link) for link in lst] if key == 'links' else lst)
-                                         for key, lst in tile.items()}
-                                    for id, tile in utilities['domain_dict'].items()}
+    print(f'Searching for utilities for the run with tags {kwargs}.')
+    entry = collection_util.find(kwargs)
+    if entry.count():
+        utilities = db_util_entry_to_dict(entry[0])
+        print('Utilities retrieved from database.')
     else:
         print('No utilities entry found in database.')
+        utilities = {}
     return utilities
 
 
