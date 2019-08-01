@@ -4,30 +4,32 @@ import datetime
 """ Utility methods for processing the measurement data.
 
 Description:
-    This module implements utility functions to import the supplemented measurement data
-    from the .csv files 
+    This module implements utility functions to import the supplemented 
+    measurement data from the .csv files 
 
 -*- coding: utf-8 -*-
 
 Legal:
     (C) Copyright IBM 2018.
-    
+
     This code is licensed under the Apache License, Version 2.0. You may
-    obtain a copy of this license in the LICENSE.txt file in the root directory
-    of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
-    
+    obtain a copy of this license in the LICENSE.txt file in the root 
+    directory of this source tree or at 
+    http://www.apache.org/licenses/LICENSE-2.0.
+
     Any modifications or derivative works of this code must retain this
-    copyright notice, and modified files need to carry a notice indicating
-    that they have been altered from the originals.
+    copyright notice, and modified files need to carry a notice 
+    indicating that they have been altered from the originals.
 
     IBM-Review-Requirement: Art30.3
-    Please note that the following code was developed for the project VaVeL at
-    IBM Research -- Ireland, funded by the European Union under the
-    Horizon 2020 Program.
-    The project started on December 1st, 2015 and was completed by December 1st,
-    2018. Thus, in accordance with Article 30.3 of the Multi-Beneficiary General
-    Model Grant Agreement of the Program, there are certain limitations in force 
-    up to December 1st, 2022. For further details please contact Jakub Marecek
+    Please note that the following code was developed for the project 
+    VaVeL at IBM Research -- Ireland, funded by the European Union under 
+    the Horizon 2020 Program.
+    The project started on December 1st, 2015 and was completed by 
+    December 1st, 2018. Thus, in accordance with Article 30.3 of the 
+    Multi-Beneficiary General Model Grant Agreement of the Program, 
+    there are certain limitations in force  up to December 1st, 2022. 
+    For further details please contact Jakub Marecek 
     (jakub.marecek@ie.ibm.com) or Gal Weiss (wgal@ie.ibm.com).
 
 If you use the code, please cite our paper:
@@ -38,7 +40,7 @@ Authors:
     Julien Monteil <Julien.Monteil@ie.ibm.com>
 
 Last updated:
-    2019 - 05 - 04
+    2019 - 08 - 01
 
 """
 
@@ -53,8 +55,10 @@ def get_stations():
     stations['Marino Health Centre'] = [53.368179, -6.227809]
     stations['Finglas Civic Centre'] = [53.390295, -6.3045631]
     stations['Davitt Rd Waste Depot'] = [53.335605, -6.309578]
-    stations['St Annes park – Red Stables'] = [53.359283, -6.175324]  # only available data from < 2015
-    stations['Dun Laoghaire'] = [53.295753, -6.133805]  # ourside of bounding box
+    # only available data from < 2015:
+    stations['St Annes park – Red Stables'] = [53.359283, -6.175324]
+    # outside of bounding box:
+    stations['Dun Laoghaire'] = [53.295753, -6.133805]
     stations['Blanchardstown'] = [53.384656, -6.379524]
     return stations
 
@@ -131,7 +135,8 @@ def write_pm_csv_to_mongodb(file, collection):
         csv_reader = csv.reader(csvfile, delimiter=',', quotechar='|')
 
         row1 = next(csv_reader)
-        sites = [row1[3 * index + 1] for index in range(int((len(row1) - 1) / 3))]
+        sites = [row1[3 * index + 1]
+                 for index in range(int((len(row1) - 1) / 3))]
         pollutant_type = []
         site_location = []
         coordinates = []
@@ -148,9 +153,15 @@ def write_pm_csv_to_mongodb(file, collection):
                 date = row[0]
                 if coordinates[index] is None:
                     continue
-                for hour in ['0' + s if len(s) == 1 else s for s in [str(n) for n in range(0, 24)]]:
-                    current_date = datetime.datetime.strptime(date + ' ' + hour, '%d-%b-%y %H')
-                    db_item = {'date': current_date.strftime('%Y-%m-%d %H:%M:%S'),
+                hours = ['0' + s if len(s) == 1 else s
+                         for s in [str(n) for n in range(0, 24)]]
+                for hour in hours:
+                    current_date = datetime.datetime.strptime(
+                        date + ' ' + hour,
+                        '%d-%b-%y %H'
+                    )
+                    db_item = {'date': current_date.strftime(
+                                    '%Y-%m-%d %H:%M:%S'),
                                'timestamp': current_date.timestamp(),
                                'site': site_location[index],
                                'pollutant': pollutant_type[index],
@@ -182,7 +193,10 @@ def write_nox_csv_to_mongodb(file, collection):
                 time = row[1]
                 if time[0:2] == '24':
                     time = '00' + time[2:5]
-                current_date = datetime.datetime.strptime(date + ' ' + time, '%d/%m/%Y %H:%M')
+                current_date = datetime.datetime.strptime(
+                    date + ' ' + time,
+                    '%d/%m/%Y %H:%M'
+                )
 
                 db_item = dict()
                 db_item['date'] = current_date.strftime('%Y-%m-%d %H:%M:%S')
