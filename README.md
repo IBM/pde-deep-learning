@@ -36,9 +36,9 @@ and install it. Alternatively, on MacOS use
 
     for that. Under Windows, change the directory to
 
-      cd C:/"Program Files"/MongoDB/Server/4.0/bin
+      cd C:\Program Files\MongoDB\Server\4.0\bin\
 
-    or whatever your path to the executables is. Under Mac OS, this path should automatically get added to `$PATH`, so changing to the directory is not necessary. Now, connect to the port 27018
+    or whatever your path to the executables is. Under Mac OS, this path should automatically get added to `$PATH`, so changing to the directory is not necessary. Now, connect to the port `27018`
 
       mongod --port 27018
     
@@ -54,7 +54,7 @@ and install it. Alternatively, on MacOS use
 
 - If you want to look at the data and browse through it, get Robo3T GUI from 
 https://robomongo.org/
-and connect to port 27018 to check out the database.
+and connect to port `27018` to check out the database.
 
 
 
