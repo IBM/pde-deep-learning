@@ -14,6 +14,7 @@ except ImportError:
 
 from util import util_db_access as uda
 
+
 """ Script for plotting the traffic data.
 
     This module plots aggregated traffic data from the collection 
@@ -56,6 +57,7 @@ Last updated:
 
 """
 
+
 ###################
 # Parameters to change
 #
@@ -68,8 +70,6 @@ timestamp_start = datetime.datetime.strptime(
     '2017-07-01 00:00:00', '%Y-%m-%d %H:%M:%S').timestamp()
 
 figure_size = (35, 5)
-
-
 #
 #
 ###################
