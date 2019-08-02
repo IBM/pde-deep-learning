@@ -1,6 +1,6 @@
 # Deep Learning for PDE-based Models
 
-Consider a complex non-linear forecasting problem, e.g. from weather- and air pollution data. A general issue with those problems is that forecasting methods based on solving partial differential equations (PDEs) require a lot of computing power in the model-application phase, especially for applications to large domains, where domain decomposition methods are applied. An idea to circumvent this issue is to use deep-learning techniques to reduce the run-time of the model-application phase at a cost of increasing the run-time of the model-training phase. In this project, we propose domain decomposition methods to scale the deep-learning model to larger domains by imposing consistency constraints during the training across sub-domain boundaries. We demonstrate the methods at the example of an air pollution forecasting problem, which is governed by an advection-diffusion process and described through a PDE.
+Consider a complex non-linear forecasting problem, e.g. from weather- and air pollution data. A general issue with those problems is that forecasting methods based on solving partial differential equations (PDEs) require a lot of computing power in the model-application phase, especially for applications to large domains, where domain decomposition methods are applied. An idea to circumvent this issue is to use deep-learning techniques to reduce the run-time of the model-application phase at a cost of increasing the run-time of the model-training phase. In this project, we propose domain decomposition methods to scale the deep-learning model to larger domains by imposing consistency constraints during the training across sub-domain boundaries. We demonstrate the methods at the example of an air pollution forecasting problem, which is governed by an advection-diffusion process and described through a PDE.
 
 If you use the code, please also cite our paper: https://arxiv.org/abs/1810.09425
 
@@ -177,4 +177,7 @@ If of interest, many things can be plotted:
 
 Check the header of each file for more detail. 
 
-Thank you for your interest in this project! Don't hesitate to contact us if you have any questions, concerns, or comments. 
+
+## Thank you!
+
+Thank you for your interest in this project! Don't hesitate to contact us if you have any questions, comments, or concerns. 
