@@ -80,7 +80,7 @@ def get_traffic_data(collection, domain_dict):
         Retrieve list of link sources as a dictionary from database.
         It's a rearranged output of util.util_caline.get_traffic_volumes()
     :param collection: db_air_quality.traffic_volumes
-    :param box_dict: from db_air_quality.util
+    :param domain_dict: from db_air_quality.util
     :return: link_time_series = {link: {timestamp: volume}}
     """
     traffic_links = [
