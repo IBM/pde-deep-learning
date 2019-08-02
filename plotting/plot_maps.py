@@ -47,7 +47,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 07 - 05
+    2019 - 08 - 02
 
 """
 
