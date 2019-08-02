@@ -7,7 +7,8 @@ import util.util_ml_model as umm
 """ Script for training the ML model on pre-processed data.
 
 Description:
-    This module contains the settings and main loop for training the ML model
+    This module contains the settings and main loop for training the 
+    ML model
 
 -*- coding: utf-8 -*-
 
