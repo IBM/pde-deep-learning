@@ -344,15 +344,12 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
             + kwargs['l2_reg_coefficient'] * regularizer
             + kwargs['cc_reg_coefficient'] * cc_cost
         )
-        mse = tf.dtypes.cast(
-            tf.losses.mean_squared_error(tf_labels, predictions),
-            tf.float64
-        )
+        mse = tf.reduce_mean(tf.square(predictions - tf_labels))
         mae = tf.reduce_mean(tf.abs(predictions - tf_labels))
         smape = tf.reduce_mean(
-            2 * tf.abs((predictions - tf_labels) / (predictions + tf_labels))
-        )
-        mase = mse / tf.reduce_mean(tf.abs(tf_labels[:-1] - tf_labels[1:]))
+            tf.abs((predictions - tf_labels)
+                   / (tf.abs(predictions) + tf.abs(tf_labels)))
+        )  # based on 100%
 
         global_step = tf.Variable(0, trainable=False)
         learning_rate = tf.train.exponential_decay(
@@ -427,13 +424,12 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                             cc_batch_xs.append(
                                 cc_input_train[neighbor][randidx_c, :]
                             )
-                            cc_batch_chi.append(
-                                [data['cc_chi'][tile][neighbor][0][randidx_c, :],
-                                 data['cc_chi'][tile][neighbor][1][randidx_c, :]
-                                 ]
-                            )
+                            cc_batch_chi.append([
+                                data['cc_chi'][tile][neighbor][0][randidx_c, :],
+                                data['cc_chi'][tile][neighbor][1][randidx_c, :]
+                            ])
                     # ToDo: allow for previous time stamp labels to be
-                    #  wrapped to input
+                    #       wrapped to input
                     # -> what are the previous time stamp labels for
                     # the new boundary receptors?
                     sess.run(optimizer,
@@ -487,13 +483,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                                                 tf_labels: labels_test})
             test_smape = sess.run(smape, feed_dict={tf_data: input_test,
                                                     tf_labels: labels_test})
-            test_mase = sess.run(mase, feed_dict={tf_data: input_test,
-                                                  tf_labels: labels_test})
             if kwargs['do_print_status']:
-                print(f'MSE (test accuracy): {test_acc:.3f}')
+                print(f'MSE: {test_acc:.3f}')
                 print(f'MAE: {test_mae:.3f}')
                 print(f'sMAPE: {test_smape:.3f}')
-                print(f'MASE: {test_mase:.3f}')
 
             ###########################
             # Update consistency data # _______________________________________
@@ -581,7 +574,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             usb.save_benchmarks(tile, iteration, num_instances, num_input,
                                 num_classes,
-                                test_acc, test_mae, test_smape, test_mase,
+                                test_acc, test_mae, test_smape, 999,
                                 training_start_time, mlp_times, **kwargs)
 
             if kwargs['do_save_model']:

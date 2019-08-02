@@ -67,7 +67,7 @@ def get_parameters():
         'num_epochs': 200,
         'batch_size': 128,
         'l2_reg_coefficient': 0.0001,  # weights are regularized with l2 norm
-        'starter_learning_rate': 0.001,
+        'starter_learning_rate': 0.01,
         'decay_factor': 0.96,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
@@ -114,6 +114,10 @@ def main():
     data = umm.get_data(collections['data'], mesh, **param)
     if param['do_print_status']:
         print('Data loaded successfully.')
+        print(f'Labels min: {np.min(list(data["labels"].values()))}')
+        print(f'Labels median: {np.median(list(data["labels"].values()))}')
+        print(f'Labels mean: {np.mean(list(data["labels"].values()))}')
+        print(f'Labels max: {np.max(list(data["labels"].values()))}\n')
 
     for iteration in range(param['num_iterations']):
         mlp_times = umm.run_recursion_cycle(data, mesh, iteration,
