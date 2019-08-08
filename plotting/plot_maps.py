@@ -11,7 +11,6 @@ import pymongo
 import util.util_db_access as uda
 import util.util_measurements as um
 
-
 """ Script to plot coordinate maps of traffic links, domain boundaries, 
     receptors, and measurement stations.  
 
@@ -75,11 +74,13 @@ def get_parameters():
     distances = [
         6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
     ]  # Dublin
-    param['tags'] = [{'run_tag': '2019-07-04',
-                      'contour_distance': dist,
-                      'case': 'Dublin'  # 'Demo' or 'Dublin'
-                      }
-                     for dist in distances]
+    param['tags'] = [{
+            'run_tag': '2019-07-04',
+            'contour_distance': dist,
+            'case': 'Dublin'  # 'Demo' or 'Dublin'
+        }
+        for dist in distances
+    ]
     # Title of each plot. If plots are combined, only the last title is used.
     param['titles'] = {dist: f'Map of Dublin.'
                        for dist in distances}
