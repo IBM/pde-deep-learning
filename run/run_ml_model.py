@@ -62,14 +62,14 @@ def get_parameters():
         'mesh_size': 2,  # tag which identifies pre-processed data
         'tiles': [6, 7],  # list of id's of each of the sub-domain
         # model hyper-parameters
-        'num_iterations': 20,
+        'num_iterations': 5,
         'num_hidden_layers': 4,
         'num_nodes': 42,
-        'num_epochs': 200,
+        'num_epochs': 2000,
         'batch_size': 128,
-        'l2_reg_coefficient': 0.0001,  # weights are regularized with l2 norm
-        'starter_learning_rate': 0.01,
-        'decay_factor': 0.96,  # exponential decay
+        'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
+        'starter_learning_rate': 1e-4,
+        'decay_factor': 0.98,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
         # ToDo: allow True in update of consistency constraint data
@@ -81,9 +81,9 @@ def get_parameters():
         'cc_update_version': 'version 3',
         # check util.util_consistency_constraints
         # saving of output
-        'do_save_benchmark': False,
-        'do_save_cc': False,
-        'do_save_model': False,
+        'do_save_benchmark': True,
+        'do_save_cc': True,
+        'do_save_model': True,
         'do_save_estimates': False,
         'iterations_to_save_estimates': [0] + list(range(4, 10000, 5)),
         'do_print_status': True,
@@ -106,6 +106,8 @@ def main():
               )
         print(f'Hidden layers: {param["num_hidden_layers"]}\t '
               f'nodes: {param["num_nodes"]}\t')
+        print(f'learning rate: {param["starter_learning_rate"]}\t '
+              f'decay rate: {param["decay_factor"]}')
         print(f'Lambda: {param["cc_reg_coefficient"]}\t '
               f'kappa: {param["kappa"]}\t '
               f'epsilon: {param["epsilon"]}\n')
