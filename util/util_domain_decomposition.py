@@ -252,7 +252,8 @@ def get_neighboring_domains(domain_dict):
                 for edge in edges:
                     for other_edge in other_edges:
                         for point in edge:
-                            if (distance_point_from_line(point, other_edge) == 0
+                            if (distance_point_from_line(point,
+                                                         other_edge) == 0
                                     and point not in intersection):
                                 intersection.append(list(point))
                         for point in other_edge:
