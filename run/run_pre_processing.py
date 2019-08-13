@@ -18,8 +18,10 @@ Description:
 
         sub_domain = id
         run_tag    = run_tag
-        input      = [timestamp, wind_dir, wind_speed, wind_dir_std, temperature, 
-                      lat_link1, lon_link1, lat_link2, lon_link2, volume, ... x20, 
+        input      = [timestamp, 
+                      wind_dir, wind_speed, wind_dir_std, temperature, 
+                      lat_link1, lon_link1, lat_link2, lon_link2, volume, 
+                      ... x20, 
                       lat, lon, ... x20]
         labels     = [NO2_value, PM10_value, PM25_value, ... x20]
 
@@ -29,7 +31,8 @@ Description:
     that is coming from traffic. Taking the background pollution levels 
     into account, the collected output is given by
 
-        output = Caline(traffic, weather, default background) - default background
+        output = Caline(traffic, weather, default background) 
+                 - default background
 
     The default background is a static value, whereas the real 
     background depends on the time. In order to only model the 
@@ -70,7 +73,7 @@ Author:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 13
 
 """
 
@@ -79,25 +82,27 @@ def get_parameters():
     """
     :return:
     """
-    #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
-    param = {'date start': datetime.datetime(2017, 7, 1, 1),
-             'date end': datetime.datetime(2018, 5, 2, 23),
-             # 'sub domain selection': list(range(1, 12 + 1)),
-             'sub domain selection': [6, 7],
-             'pad links with zeroes': False,
-             'pollutants': ['NO2']  # , 'PM10', 'PM25'
-             }
-    # runs selectors from the caline_estimates
-    distances = [
-        5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
-    ]  # Demo
     # distances = [
-    #     6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
-    # ]  # Dublin
-    param['tags'] = [{'run_tag': '2019-07-04',
-                      'contour_distance': dist,
-                      'case': 'Demo'}
-                     for dist in distances]
+    #     5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
+    # ]  # Demo
+    distances = [
+        6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
+    ]  # Dublin
+    param = {
+        #  runs selectors from the caline_estimates
+        'tags': [{'run_tag': '2019-07-04',
+                  'contour_distance': dist,
+                  'case': 'Dublin'
+                  } for dist in distances],
+        #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
+        'date start': datetime.datetime(2017, 7, 1, 1),
+        'date end': datetime.datetime(2018, 5, 2, 23),
+        'sub domain selection': list(range(1, 12 + 1)),
+        # 'sub domain selection': [6, 7],
+        #  if input should have the same size for all tiles:
+        'pad links with zeroes': False,
+        'pollutants': ['NO2']  # , 'PM10', 'PM25'
+    }
     return param
 
 
@@ -111,11 +116,10 @@ def pre_process(collection_pre, mesh,
 
         TODO: make pre-processed receptors easily findable
 
-    :param date_start:
-    :param date_end:
     :param collection_pre:
     :param mesh:
-    :param weather_data: {timestamp: [wind_dir, wind_speed, wind_dir_std, temp]}
+    :param weather_data:
+        {timestamp: [wind_dir, wind_speed, wind_dir_std, temp]}
     :param traffic_volumes:
     :param utilities:
     :param caline_estimates: output of util_db_access.get_caline_estimates()
@@ -132,7 +136,7 @@ def pre_process(collection_pre, mesh,
         return normalize(_timestamp, time_mean, time_std)
 
     def normalize_weather(_weather_list):
-        """ :param _weather_list: [wind_dir, wind_speed, wind_dir_std, temp] """
+        """ :param _weather_list: [wind_dir, wind_spd, wind_dir_std, temp] """
         return list(
             normalize(np.asarray(_weather_list), weather_mean, weather_std))
 
@@ -300,10 +304,14 @@ def main():
             Get traffic data.
             Get Caline estimates.
             Pre-process into the form
-                input = [timestamp, wind_dir, wind_speed, wind_dir_std, temperature,
-                         lat_src_start, lon_src_start, lat_src_end, lon_src_end, volume, ... x20,
+                input = [timestamp,
+                         wind_dir, wind_speed, wind_dir_std, temperature,
+                         lat_src_start, lon_src_start,
+                         lat_src_end, lon_src_end, volume,
+                         ... x20,
                          lat_rec, lon_rec, ... x20]
-                labels = [rec_NO2_value, rec_PM10_value, rec_PM25_value, ... x20]
+                labels = [rec_NO2_value, rec_PM10_value, rec_PM25_value,
+                          ... x20]
 
     :return: None
     """

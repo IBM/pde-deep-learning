@@ -42,7 +42,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 13
 
 """
 
@@ -51,21 +51,23 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def get_parameters():
     """
-    use 'mesh_size': 2 for synthetic example
+    use 'mesh_size': 2 for synthetic example (Demo)
     use 'mesh_size': 12 for Dublin example
     select 'tiles': [i, j, k] for the tiles i, j, k that are part of the run
     The synthetic example has the two tiles 6 and 7.
     :return:
     """
-    param = {  # data parameters
-        'case': 'Demo',  # retrieves utilities based on this tag
-        'mesh_size': 2,  # tag which identifies pre-processed data
-        'tiles': [6, 7],  # list of id's of each of the sub-domain
+    param = {
+        # tags for data retrieval:
+        'case': 'Demo',  # 'Dublin' or 'Demo'
+        'mesh_size': 2,  # number of sub-domains in pre-processed collection
+        'tiles': [6, 7],  # list of id's to be used in modeling
+        # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
-        'num_iterations': 5,
+        'num_iterations': 10,
         'num_hidden_layers': 4,
         'num_nodes': 42,
-        'num_epochs': 2000,
+        'num_epochs': 50,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
         'starter_learning_rate': 1e-4,
@@ -81,11 +83,11 @@ def get_parameters():
         'cc_update_version': 'version 3',
         # check util.util_consistency_constraints
         # saving of output
-        'do_save_benchmark': True,
+        'do_save_benchmark': False,
         'do_save_cc': True,
         'do_save_model': True,
         'do_save_estimates': False,
-        'iterations_to_save_estimates': [0] + list(range(4, 10000, 5)),
+        'iterations_to_save_estimates': [0, 1, 2, 5, 8],
         'do_print_status': True,
         # for reproducibility
         'random_seed': None
