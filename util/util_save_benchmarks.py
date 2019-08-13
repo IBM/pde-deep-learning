@@ -152,7 +152,7 @@ def save_ml_estimates(estimates, inputs, iteration, tile, collection_mlp_estim,
                     'epochs': kwargs['num_epochs'],
                     'batch size': kwargs['batch_size'],
                     'learning rate': kwargs['starter_learning_rate'],
-                    'comment': kwargs['comment'],
+                    'comment': kwargs['cc_update_version'],
                     'seed': kwargs['random_seed']
                 }
             })
