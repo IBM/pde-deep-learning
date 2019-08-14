@@ -214,7 +214,9 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
             inputs = np.concatenate([scaled_inputs, scaled_labels], axis=1)
         else:
             # normalize the data
-            inputs = scaler.fit_transform(np.asarray(data['input'][tile]))
+            inputs = scaler.fit_transform(
+                np.asarray(data['input'][tile])
+            )
 
         num_neighbors = len(mesh['neighbors'][tile])
         num_instances = inputs.shape[0]  # Number of instances
@@ -346,18 +348,15 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
         )
         mse = tf.reduce_mean(tf.square(predictions - tf_labels))
         mae = tf.reduce_mean(tf.abs(predictions - tf_labels))
+        mape = tf.reduce_mean(tf.abs(predictions - tf_labels)
+                              / tf.abs(tf_labels))
         smape = tf.reduce_mean(
             tf.abs((predictions - tf_labels)
                    / (tf.abs(predictions) + tf.abs(tf_labels)))
         )  # based on 100%
 
         global_step = tf.Variable(0, trainable=False)
-        learning_rate = tf.train.exponential_decay(
-            kwargs['starter_learning_rate'],
-            global_step,
-            10000,
-            kwargs['decay_factor'],
-            staircase=True)
+        learning_rate = tf.placeholder(tf.float32)
         optimizer = tf.train.AdamOptimizer(
             learning_rate=learning_rate
         ).minimize(cost, global_step=global_step)
@@ -432,10 +431,30 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                     #       wrapped to input
                     # -> what are the previous time stamp labels for
                     # the new boundary receptors?
+
+                    if epoch < 5:
+                        lr = 1e-2
+                    # elif epoch < 10:
+                    #     lr = 1e-1
+                    # elif epoch < 20:
+                    #     lr = 1e-2
+                    # elif epoch < 30:
+                    #     lr = 1e-3
+                    # elif epoch < 50:
+                    #     lr = 1e-4
+                    else:
+                        decay_steps = 5000
+                        lr = (
+                            kwargs['starter_learning_rate']
+                            * kwargs['decay_factor'] ** (epoch * total_batch
+                                                         / decay_steps)
+                        )
+
                     sess.run(optimizer,
                              feed_dict={tf_data: batch_xs, tf_labels: batch_ys,
                                         tf_cc_input: cc_batch_xs,
-                                        chi: cc_batch_chi})
+                                        chi: cc_batch_chi,
+                                        learning_rate: lr})
                     # Compute average loss
                     avg_cost += sess.run(
                         cost,
@@ -446,7 +465,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                     ) / total_batch
 
                 # Display logs per epoch step
-                if epoch % 50 == 0:
+                if epoch % 1 == 0:
                     if kwargs['do_print_status']:
                         print(f'Epoch: {epoch}/{kwargs["num_epochs"]} cost: '
                               f'{avg_cost:.3f} ({time.perf_counter() - t:.2f}'
@@ -464,7 +483,8 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                 print('Saving estimates')
 
             mlp_run_time = time.perf_counter()
-            estimates = sess.run(predictions, feed_dict={tf_data: input_test})
+            # inputs is scaled data['input'][tile]
+            estimates = sess.run(predictions, feed_dict={tf_data: inputs})
             mlp_times.append(time.perf_counter() - mlp_run_time)
 
             usb.save_ml_estimates(estimates, data['input'][tile], iteration,
@@ -481,11 +501,14 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                                                 tf_labels: labels_test})
             test_mae = sess.run(mae, feed_dict={tf_data: input_test,
                                                 tf_labels: labels_test})
+            test_mape = sess.run(mape, feed_dict={tf_data: input_test,
+                                                  tf_labels: labels_test})
             test_smape = sess.run(smape, feed_dict={tf_data: input_test,
                                                     tf_labels: labels_test})
             if kwargs['do_print_status']:
                 print(f'MSE: {test_acc:.3f}')
                 print(f'MAE: {test_mae:.3f}')
+                print(f'MAPE: {test_mape:.3f}')
                 print(f'sMAPE: {test_smape:.3f}')
 
             ###########################
@@ -574,7 +597,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             usb.save_benchmarks(tile, iteration, num_instances, num_input,
                                 num_classes,
-                                test_acc, test_mae, test_smape, 999,
+                                test_acc, test_mae, test_mape, test_smape,
                                 training_start_time, mlp_times, **kwargs)
 
             if kwargs['do_save_model']:

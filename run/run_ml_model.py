@@ -1,3 +1,4 @@
+from datetime import datetime
 import numpy as np
 import tensorflow as tf
 
@@ -65,13 +66,13 @@ def get_parameters():
         # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
         'num_iterations': 10,
-        'num_hidden_layers': 4,
-        'num_nodes': 42,
-        'num_epochs': 50,
+        'num_hidden_layers': 3,
+        'num_nodes': 50,
+        'num_epochs': 10,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
-        'starter_learning_rate': 1e-4,
-        'decay_factor': 0.98,  # exponential decay
+        'starter_learning_rate': 1e-2,
+        'decay_factor': 0.9,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
         # ToDo: allow True in update of consistency constraint data
@@ -83,10 +84,10 @@ def get_parameters():
         'cc_update_version': 'version 3',
         # check util.util_consistency_constraints
         # saving of output
-        'do_save_benchmark': False,
+        'do_save_benchmark': True,
         'do_save_cc': True,
         'do_save_model': True,
-        'do_save_estimates': False,
+        'do_save_estimates': True,
         'iterations_to_save_estimates': [0, 1, 2, 5, 8],
         'do_print_status': True,
         # for reproducibility
@@ -101,6 +102,7 @@ def main():
     if param['random_seed'] is None:
         param['random_seed'] = np.random.randint(2147483647)
     np.random.seed(param['random_seed'])
+    param['start_time'] = datetime.strftime(datetime.now(), '%y%m%d-%H%M%S')
 
     if param['do_print_status']:
         print(f'Using pre-processed data for {param["case"]} '
@@ -119,10 +121,11 @@ def main():
     data = umm.get_data(collections['data'], mesh, **param)
     if param['do_print_status']:
         print('Data loaded successfully.')
-        print(f'Labels min: {np.min(list(data["labels"].values()))}')
-        print(f'Labels median: {np.median(list(data["labels"].values()))}')
-        print(f'Labels mean: {np.mean(list(data["labels"].values()))}')
-        print(f'Labels max: {np.max(list(data["labels"].values()))}\n')
+        all_data = np.concatenate(list(data['labels'].values()))
+        print(f'Labels min: {np.min(all_data)}')
+        print(f'Labels median: {np.median(all_data)}')
+        print(f'Labels mean: {np.mean(all_data)}')
+        print(f'Labels max: {np.max(all_data)}\n')
 
     for iteration in range(param['num_iterations']):
         mlp_times = umm.run_recursion_cycle(data, mesh, iteration,

@@ -1,6 +1,6 @@
 import datetime
 import numpy as np
-import openpyxl
+import os
 import time
 
 """ Utility methods for saving benchmarks
@@ -41,7 +41,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 14
 
 """
 
@@ -54,6 +54,17 @@ chi_sheet_name = "chi"
 
 def save_consistency_constraints(cc_chi, y_diff, tile, neighbor, iteration,
                                  **kwargs):
+    header = (
+        'date\tseed\tmesh_size\t'
+        + 'learning_rate\tbatch_size\tepochs\t'
+        + 'n_layers\tn_nodes\t'
+        + 'reg_coeff\tcc_coeff\tkappa\tepsilon\t'
+        + 'tile\tneighbor\titer\t'
+        + 'chi_l_min\tchi_l_med\tch_l_avg\tch_l_max\t'
+        + 'chi_u_min\tchi_u_med\tch_u_avg\tch_u_max\t'
+        + 'chi_avg_dist\tY_avg_dist\tversion'
+        + '\n'
+    )
     chi_save = [
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         kwargs['random_seed'],
@@ -84,17 +95,35 @@ def save_consistency_constraints(cc_chi, y_diff, tile, neighbor, iteration,
         y_diff,
         kwargs['cc_update_version']
     ]
-    chi_file = openpyxl.load_workbook(chi_file_name)
-    chi_sheet = chi_file[chi_sheet_name]
-    chi_sheet.append(chi_save)
-    chi_file.save(chi_file_name)
+    line = '\t'.join([str(i) for i in chi_save]) + '\n'
+
+    file_name = kwargs['start_time'] + '_' + kwargs['case'] + '.txt'
+    file_path = '../output/cc/' + file_name
+    file_exists = False
+    if os.path.isfile(file_path):
+        file_exists = True
+
+    with open(file_path, 'a+') as f:
+        if not file_exists:
+            f.write(header)
+        f.write(line)
+        f.close()
+    if kwargs['do_print_status']:
+        print("Consistency constraints saved.")
     return None
 
 
 def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
-                    test_mse, test_mae, test_smape, test_mase,
+                    test_mse, test_mae, test_mape, test_smape,
                     training_start_time, mlp_times, **kwargs):
     if kwargs['do_save_benchmark']:
+        header = (
+            'date\tseed\tmesh_size\ttile\tn_instances\tn_input\tn_classes\t'
+            + 'learning_rate\treg_coeff\tbatch_size\tepochs\tcc_coeff\t'
+            + 'kappa\tn_layers\tn_nodes\titer\tMSE\tMAE\tMAPE\tsMAPE\t'
+            + 'training_time\tML_execution_time'
+            + '\n'
+        )
         benchmark = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             kwargs['random_seed'],
@@ -114,15 +143,24 @@ def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
             iteration + 1,
             test_mse,
             test_mae,
+            test_mape,
             test_smape,
-            test_mase,
             int(time.perf_counter() - training_start_time),
             np.average(mlp_times)
         ]
-        benchmark_file = openpyxl.load_workbook(benchmark_file_name)
-        benchmark_sheet = benchmark_file[benchmark_sheet_name]
-        benchmark_sheet.append(benchmark)
-        benchmark_file.save(benchmark_file_name)
+        line = '\t'.join([str(i) for i in benchmark]) + '\n'
+
+        file_name = kwargs['start_time'] + '_' + kwargs['case'] + '.txt'
+        file_path = '../output/benchmarks/' + file_name
+        file_exists = False
+        if os.path.isfile(file_path):
+            file_exists = True
+
+        with open(file_path, 'a+') as f:
+            if not file_exists:
+                f.write(header)
+            f.write(line)
+            f.close()
         if kwargs['do_print_status']:
             print("Benchmarks saved.")
     return None
@@ -134,15 +172,14 @@ def save_ml_estimates(estimates, inputs, iteration, tile, collection_mlp_estim,
             and iteration in kwargs['iterations_to_save_estimates']):
         if kwargs['do_print_status']:
             print("Saving of MLP estimates ...")
-        estimates = [list(estimate) for estimate in estimates]
         # if we try to save the whole estimates array, we may get an error:
         # pymongo.errors.DocumentTooLarge: BSON document too large
         save = []
         for i, xinput in enumerate(inputs):
             save.append({
                 'tile': tile,
-                'input': xinput,
-                'labels': estimates[i],
+                'input': list(xinput),
+                'labels': list(estimates[i]),
                 'settings': {
                     'gamma': kwargs['cc_reg_coefficient'],
                     'kappa': kwargs['kappa'],
