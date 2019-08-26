@@ -178,6 +178,25 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
     return out_layer
 
 
+def get_learning_rate(epoch, total_batch, **kwargs):
+    if epoch < 5:
+        lr = 1e-2
+    # elif epoch < 10:
+    #     lr = 1e-1
+    # elif epoch < 20:
+    #     lr = 1e-2
+    # elif epoch < 30:
+    #     lr = 1e-3
+    # elif epoch < 50:
+    #     lr = 1e-4
+    else:
+        decay_steps = 5000
+        lr = (kwargs['starter_learning_rate']
+              * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
+        )
+    return lr
+
+
 def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
     """
     :param data:
@@ -356,6 +375,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
         )  # based on 100%
 
         global_step = tf.Variable(0, trainable=False)
+        # learning rate is defined based on epoch
         learning_rate = tf.placeholder(tf.float32)
         optimizer = tf.train.AdamOptimizer(
             learning_rate=learning_rate
@@ -432,24 +452,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                     # -> what are the previous time stamp labels for
                     # the new boundary receptors?
 
-                    if epoch < 5:
-                        lr = 1e-2
-                    # elif epoch < 10:
-                    #     lr = 1e-1
-                    # elif epoch < 20:
-                    #     lr = 1e-2
-                    # elif epoch < 30:
-                    #     lr = 1e-3
-                    # elif epoch < 50:
-                    #     lr = 1e-4
-                    else:
-                        decay_steps = 5000
-                        lr = (
-                            kwargs['starter_learning_rate']
-                            * kwargs['decay_factor'] ** (epoch * total_batch
-                                                         / decay_steps)
-                        )
-
+                    lr = get_learning_rate(epoch, total_batch, **kwargs)
                     sess.run(optimizer,
                              feed_dict={tf_data: batch_xs, tf_labels: batch_ys,
                                         tf_cc_input: cc_batch_xs,
