@@ -161,6 +161,20 @@ The supplemented database contains all generated data up to this point. Next up 
 
     python run/run_pre_processing.py
 
+Within the user-chosen parameters, you can select the tags for identifying the Caline data in the collection, which has the identifiers
+
+    'run_tag': (str) anything, but we used the date of the run in format 'YYYY-MM-DD' 
+    'case': (str) 'Dublin' or 'Demo'
+    'contour_distance': (int) interval distance for placing receptors from line sources
+
+From the collection, different pre-processing runs are identified via the ‘case’ (Dublin or Demo, as given in the get_parameters() L.99), and 'mesh_size', which is the length of the sub domain selection in L.86. So, it would be possible to have a couple of pre-processed data together without creating and managing new collections: 
+
+1) the Demo
+2) the full Dublin example
+3) some subset of the Dublin example, restricted to a number of tiles
+
+Make sure that there is no other data in the pre_proc collection!
+
 Now we can run the deep learning model.
 
     python run/run_ml_model.py
