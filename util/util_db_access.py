@@ -273,62 +273,38 @@ def get_caline_estimates_for_receptor(
 
 
 def get_ml_estimates_for_receptor(
-        collection_ml_estimates, collection_util, date_start, date_end,
+        collection_ml_estimates, date_start, date_end,
         receptor_coord, **kwargs
 ):
-    coord = tuple(receptor_coord)
+    """
+        Collects pollution estimate data from the
+        collection_ml_estimates between the dates date_start and
+        date_end of a the run corresponding to run_tag
 
-    def pre_proc_t(t):
-        return (t - (end_timestamp + start_timestamp) / 2) \
-               / ((end_timestamp - start_timestamp) / 12)
+    :param collection_ml_estimates: MongoDB collection
+    :param date_start: datetime object
+    :param date_end: datetime object
+    :param kwargs: ML run identifiers, like iteration and settings
+    :param receptor_coord: [lat, lon]
+    :return: caline_estimates = {timestamp: {pollutant: value}}
+    """
+    ml_estimates = defaultdict(dict)  # see docstring
 
-    def inv_proc_t(t):
-        return t * (end_timestamp - start_timestamp) \
-               / 12 + (end_timestamp + start_timestamp) / 2
+    filter_list = [
+        {'timestamp': {'$gte': date_start.timestamp()}},
+        {'timestamp': {'$lte': date_end.timestamp()}},
+        {'coord': receptor_coord}
+    ]
+    filter_list += [{k: v} for k, v in kwargs.items()]
 
-    start_timestamp = datetime.datetime(2017, 7, 1, 0).timestamp()
-    end_timestamp = datetime.datetime(2018, 5, 2, 23).timestamp()
-    date = date_start
-    time_step = datetime.timedelta(hours=1)
-    times = []
-    while date <= date_end:
-        times.append(pre_proc_t(date.timestamp()))
-        date += time_step
+    pipeline = [{'$match': {'$and': filter_list}}]
 
-    entries = collection_util.find()
-    utilities = [db_util_entry_to_dict(entry) for entry in entries]
-    index = 0
-    norm_list = []
-    for util in utilities:
-        if coord in util['receptors_index']:
-            index = util['receptors_index'][coord]['index']
-            norm_list = list(util['bounding_box'].values())
-            break
+    for ml_entry in collection_ml_estimates.aggregate(pipeline):
+        timestamp = ml_entry['timestamp']
+        poll = ml_entry['pollutant']
+        ml_estimates[timestamp][poll] = ml_entry['value']
 
-    coord_mean = np.mean(np.transpose(norm_list), 1)
-    coord_std = np.std(np.transpose(norm_list), 1)
-
-    mlp_receptor_coord = list(
-        (np.asarray(receptor_coord) - coord_mean) / coord_std
-    )
-
-    ml_filter = {
-        'input.0': {'$in': times},
-        'input': {'$all': mlp_receptor_coord}
-    }
-    for key, value in kwargs.items():
-        ml_filter[key] = value
-
-    collection = collection_ml_estimates.find(ml_filter)
-
-    mlp_estimates = defaultdict(dict)
-    for entry in collection:
-        t = inv_proc_t(entry['input'][0])
-        num_pollutants = entry['labels'] // 20
-        # index = int(entry['input'][105:].index(mlp_receptor_coord[0])/2)
-        mlp_estimates[t]['NO2'] = entry['labels'][(index-1)*num_pollutants]
-
-    return mlp_estimates
+    return ml_estimates
 
 
 def db_util_entry_to_dict(entry, tiles=None):
