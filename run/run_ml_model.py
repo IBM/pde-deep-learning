@@ -71,7 +71,7 @@ def get_parameters():
         'num_epochs': 10,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
-        'starter_learning_rate': 1e-2,
+        'starter_learning_rate': 1e-4,
         'decay_factor': 0.9,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
@@ -88,7 +88,7 @@ def get_parameters():
         'do_save_cc': True,
         'do_save_model': True,
         'do_save_estimates': True,
-        'iterations_to_save_estimates': [0, 1, 2, 5, 8],
+        'iterations_to_save_estimates': [1, 2, 5, 8],  # 1-based
         'do_print_status': True,
         # for reproducibility
         'random_seed': None
@@ -127,9 +127,15 @@ def main():
         print(f'Labels mean: {np.mean(all_data)}')
         print(f'Labels max: {np.max(all_data)}\n')
 
-    for iteration in range(param['num_iterations']):
+    normalisation_stats = collections['data'].find({
+        'util.case': param['case']
+    })[0]['util']['utils']
+
+    # iterations are 1-based
+    for iteration in range(1, param['num_iterations'] + 1):
         mlp_times = umm.run_recursion_cycle(data, mesh, iteration,
-                                            collections['pred'], **param)
+                                            collections['pred'],
+                                            normalisation_stats, **param)
         if param['use_consistency_constraints']:
             ucc.update_consistency_constraints(data, mesh, iteration, **param)
         if param['do_print_status']:

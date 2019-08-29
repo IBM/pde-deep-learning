@@ -82,25 +82,33 @@ def get_parameters():
     """
     :return:
     """
-    # distances = [
-    #     5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
-    # ]  # Demo
-    distances = [
-        6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
-    ]  # Dublin
+    case = 'Demo'
+    if case == 'Demo':
+        distances = [
+            5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
+        ]
+    elif case == 'Dublin':
+        distances = [
+            6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
+        ]
+    else:
+        distances = []
+
     param = {
+        'CASE': case,
         #  runs selectors from the caline_estimates
         'tags': [{'run_tag': '2019-07-04',
                   'contour_distance': dist,
-                  'case': 'Dublin'
+                  'case': case
                   } for dist in distances],
         #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
         'date start': datetime.datetime(2017, 7, 1, 1),
         'date end': datetime.datetime(2018, 5, 2, 23),
-        'sub domain selection': list(range(1, 12 + 1)),
-        # 'sub domain selection': [6, 7],
+        # 'sub domain selection': list(range(1, 12 + 1)),
+        'sub domain selection': [6, 7],
         #  if input should have the same size for all tiles:
         'pad links with zeroes': False,
+        'do normalise': True,
         'pollutants': ['NO2']  # , 'PM10', 'PM25'
     }
     return param
@@ -113,8 +121,6 @@ def pre_process(collection_pre, mesh,
     """
         The pre-processing is split up for each individual run because
         of the potentially high memory burden.
-
-        TODO: make pre-processed receptors easily findable
 
     :param collection_pre:
     :param mesh:
@@ -129,7 +135,10 @@ def pre_process(collection_pre, mesh,
     """
 
     def normalize(val, mean, std):
-        return (val - mean) / std
+        if kwargs['do normalise']:
+            return (val - mean) / std
+        else:
+            return val
 
     def normalize_time(_timestamp):
         """ :param _timestamp: (float) timestamp """
@@ -242,10 +251,13 @@ def pre_process(collection_pre, mesh,
                 # maximal 20 links in sub-domain; if less, pad with zeros
                 current_traffic_volume += [0] * ((20 - len(links)) * 5)
 
-            current_receptors = []
-            current_estimates = []
+            timestamp = [normalize_time(current_timestamp)]
+            weather = normalize_weather(current_weather_data)
+
+            # current_receptors = []
             for i, coord in enumerate(receptor_coords[sub_domain_id]):
-                current_receptors += normalize_coords(coord)
+                current_receptors = normalize_coords(coord)
+                current_estimates = []
                 for pollution_type in u_pol.Pollutant:
                     poll = pollution_type.get_name()
                     if coord in caline_estimates[current_timestamp] \
@@ -259,28 +271,27 @@ def pre_process(collection_pre, mesh,
                     if poll in kwargs['pollutants']:
                         current_estimates.append(value)
 
-            timestamp = [normalize_time(current_timestamp)]
-            weather = normalize_weather(current_weather_data)
+                input_data = (
+                        timestamp + weather + current_traffic_volume
+                        + current_receptors
+                )
+                labels = current_estimates
 
-            input_data = (
-                    timestamp + weather + current_traffic_volume
-                    + current_receptors
-            )
-            labels = current_estimates
-
-            data = {'case': kwargs['case'],
+                data = {
+                    'case': kwargs['case'],
                     'mesh_size': len(mesh),
                     'sub_domain': sub_domain_id,
                     'input': input_data,
-                    'labels': labels}
+                    'labels': labels
+                }
 
-            collection_of_pre_processed_entries.append(data)
+                collection_of_pre_processed_entries.append(data)
 
-            if len(collection_of_pre_processed_entries) < max_collection_size:
-                continue
-            collection_pre.insert_many(collection_of_pre_processed_entries)
-            collection_of_pre_processed_entries = []
-            print(f'Complete up to {date_current:%Y-%M-%d %H}.')
+                if len(collection_of_pre_processed_entries) < max_collection_size:
+                    continue
+                collection_pre.insert_many(collection_of_pre_processed_entries)
+                collection_of_pre_processed_entries = []
+                print(f'Complete up to {date_current:%Y-%m-%d %H}.')
 
         date_current += time_step
 
@@ -288,7 +299,38 @@ def pre_process(collection_pre, mesh,
     if collection_of_pre_processed_entries:
         collection_pre.insert_many(collection_of_pre_processed_entries)
 
-    return None
+    util = {
+        'case': kwargs['case'],
+        'mesh_size': len(mesh),
+        'pad links with zeroes': kwargs['pad links with zeroes'],
+        'do normalise': kwargs['do normalise'],
+        'date start': str(kwargs['date start']),
+        'date end': str(kwargs['date end']),
+        'sub domain selection': kwargs['sub domain selection'],
+        'pollutants': kwargs['pollutants'],
+        'time': {
+            'mean': time_mean,
+            'std': time_std
+        },
+        'weather': {
+            'mean': list(weather_mean),
+            'std': list(weather_std)
+        },
+        'coord': {
+            'mean': list(coord_mean),
+            'std': list(coord_std)
+        },
+        'traffic volumes': {
+            'mean': volumes_mean,
+            'std': volumes_std
+        },
+        'poll': {
+            'mean': poll_mean,
+            'std': poll_std
+        }
+    }
+
+    return util
 
 
 def main():
@@ -342,6 +384,8 @@ def main():
 
     print('')
 
+    pre_proc_utils = []
+
     for tag_dict in param['tags']:
 
         utilities = uda.get_utilities_from_collection(collection_util,
@@ -385,14 +429,33 @@ def main():
         mesh = utilities['domain_dict']
 
         t = time.perf_counter()
-        pre_process(collection_pre, mesh,
-                    weather_data, traffic_volumes, utilities,
-                    caline_estimates, receptor_list,
-                    **param,
-                    **tag_dict)
+        util = pre_process(collection_pre, mesh,
+                           weather_data, traffic_volumes, utilities,
+                           caline_estimates, receptor_list,
+                           **param,
+                           **tag_dict)
+        pre_proc_utils.append(util)
         elaps = time.perf_counter() - t
         print(f'Pre-processing complete ({elaps:.2f})s.')
         print('')
+
+    util_all = {
+        'util': {
+            'case': param['CASE'],
+            'pad links with zeroes': param['pad links with zeroes'],
+            'do normalise': param['do normalise'],
+            'date start': str(param['date start']),
+            'date end': str(param['date end']),
+            'sub domain selection': param['sub domain selection'],
+            'pollutants': param['pollutants'],
+            # assuming that all combined Caline runs have the same mean and std
+            'utils': pre_proc_utils[0]
+        }
+    }
+
+    collection_pre.insert_one(util_all)
+
+    print(f'The program finished running at {str(datetime.datetime.now())}.')
 
     return None
 

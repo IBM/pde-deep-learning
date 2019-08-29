@@ -166,21 +166,28 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
     :param num_hidden_layers:
     :return:
     """
-    hidden = tf.nn.relu(tf.add(tf.matmul(input_data, weights['in']),
-                               biases['in']))
+    def dense(inp, w, b):
+        return tf.add(tf.matmul(inp, w), b)
+
+    hidden = dense(input_data, weights['in'], biases['in'])
+    hidden = tf.nn.relu(hidden)
+
     for i in range(num_hidden_layers):
         hkey = 'h' + str(i + 1)
         bkey = 'b' + str(i + 1)
-        hidden = tf.nn.relu(tf.add(tf.matmul(hidden, weights[hkey]),
-                                   biases[bkey]))
-    out_layer = tf.add(tf.matmul(hidden, weights['out']),
-                       biases['out'])
+        hidden = dense(hidden, weights[hkey], biases[bkey])
+        hidden = tf.nn.relu(hidden)
+
+    hidden = dense(hidden, weights['out'], biases['out'])
+    out_layer = tf.nn.relu(hidden)
     return out_layer
 
 
 def get_learning_rate(epoch, total_batch, **kwargs):
-    if epoch < 5:
-        lr = 1e-2
+    if False:
+        pass
+    # if epoch < 5:
+    #     lr = 1e-2
     # elif epoch < 10:
     #     lr = 1e-1
     # elif epoch < 20:
@@ -197,12 +204,14 @@ def get_learning_rate(epoch, total_batch, **kwargs):
     return lr
 
 
-def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
+def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
+                        normalisation_stats, **kwargs):
     """
     :param data:
     :param mesh:
-    :param iteration:
+    :param iteration: 1-based
     :param collection_mlp_estim:
+    :param normalisation_stats:
     :param kwargs: params
     :return:
     """
@@ -211,7 +220,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
     for tile_num, tile in enumerate(kwargs['tiles']):
         if kwargs['do_print_status']:
             print(f'Training for tile {tile} ({tile_num + 1}/{mesh["size"]}) '
-                  f'at iteration {iteration + 1}/{kwargs["num_iterations"]}')
+                  f'at iteration {iteration}/{kwargs["num_iterations"]}')
         training_start_time = time.perf_counter()
 
         ############################
@@ -256,7 +265,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
         cc_input_train = {}
         if kwargs['use_consistency_constraints']:
             for neighbor in mesh['neighbors'][tile]:
-                if iteration:
+                if iteration == 1:
                     cc_input_train[neighbor] = scaler.transform(
                         data['cc_input'][tile][neighbor]
                     )
@@ -412,7 +421,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
-            if iteration and kwargs['do_save_model']:
+            if iteration > 1 and kwargs['do_save_model']:
                 saver.restore(sess, save_path)
                 print("Model restored.")
 
@@ -491,7 +500,8 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
             mlp_times.append(time.perf_counter() - mlp_run_time)
 
             usb.save_ml_estimates(estimates, data['input'][tile], iteration,
-                                  tile, collection_mlp_estim, **kwargs)
+                                  tile, collection_mlp_estim,
+                                  normalisation_stats, **kwargs)
 
             ##############
             # Test model # ____________________________________________________
