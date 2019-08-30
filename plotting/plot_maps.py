@@ -46,7 +46,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 02
+    2019 - 08 - 30
 
 """
 
@@ -68,16 +68,22 @@ def get_parameters():
         'comment': ''
     }
     # runs selectors from the caline_estimates
-    # distances = [
-    #     5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
-    # ]  # Demo
-    distances = [
-        6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
-    ]  # Dublin
+    case = 'Demo'  # 'Demo' or 'Dublin'
+    if case == 'Demo':
+        distances = [
+            5, 6, 7, 8, 9, 10, 11, 13, 17, 27, 37, 53, 71, 101, 103
+        ]
+    elif case == 'Dublin':
+        distances = [
+            6, 11, 17, 20, 26, 33, 37, 47, 77, 105, 125, 160, 550, 600, 750
+        ]
+    else:
+        distances = []
+
     param['tags'] = [{
             'run_tag': '2019-07-04',
             'contour_distance': dist,
-            'case': 'Dublin'  # 'Demo' or 'Dublin'
+            'case': case
         }
         for dist in distances
     ]
