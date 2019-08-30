@@ -41,7 +41,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 14
+    2019 - 08 - 30
 
 """
 
@@ -166,7 +166,7 @@ def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
     return None
 
 
-def save_ml_estimates(estimates, inputs, iteration, tile, collection_mlp_estim,
+def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
                       normalisation_stats, **kwargs):
 
     def inv_normalise(value, mean, std):
@@ -214,23 +214,6 @@ def save_ml_estimates(estimates, inputs, iteration, tile, collection_mlp_estim,
                         'seed': kwargs['random_seed']
                     }
                 })
-                # save.append({
-                #     'tile': tile,
-                #     'input': list(xinput),
-                #     'labels': list(estimates[i]),
-                #     'settings': {
-                #         'gamma': kwargs['cc_reg_coefficient'],
-                #         'kappa': kwargs['kappa'],
-                #         'iteration': iteration,
-                #         'layers': kwargs['num_hidden_layers'],
-                #         'neurons': kwargs['num_nodes'],
-                #         'epochs': kwargs['num_epochs'],
-                #         'batch size': kwargs['batch_size'],
-                #         'learning rate': kwargs['starter_learning_rate'],
-                #         'comment': kwargs['cc_update_version'],
-                #         'seed': kwargs['random_seed']
-                #     }
-                # })
                 # collect estimates in a batch and then write batch to database
                 if len(save) < 100000:
                     continue
