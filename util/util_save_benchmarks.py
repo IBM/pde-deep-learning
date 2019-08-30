@@ -1,6 +1,6 @@
-import datetime
+from datetime import datetime
 import numpy as np
-import openpyxl
+import os
 import time
 
 """ Utility methods for saving benchmarks
@@ -41,7 +41,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 30
 
 """
 
@@ -54,8 +54,19 @@ chi_sheet_name = "chi"
 
 def save_consistency_constraints(cc_chi, y_diff, tile, neighbor, iteration,
                                  **kwargs):
+    header = (
+        'date\tseed\tmesh_size\t'
+        + 'learning_rate\tbatch_size\tepochs\t'
+        + 'n_layers\tn_nodes\t'
+        + 'reg_coeff\tcc_coeff\tkappa\tepsilon\t'
+        + 'tile\tneighbor\titer\t'
+        + 'chi_l_min\tchi_l_med\tch_l_avg\tch_l_max\t'
+        + 'chi_u_min\tchi_u_med\tch_u_avg\tch_u_max\t'
+        + 'chi_avg_dist\tY_avg_dist\tversion'
+        + '\n'
+    )
     chi_save = [
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         kwargs['random_seed'],
         kwargs['mesh_size'],
         kwargs['starter_learning_rate'],
@@ -84,19 +95,37 @@ def save_consistency_constraints(cc_chi, y_diff, tile, neighbor, iteration,
         y_diff,
         kwargs['cc_update_version']
     ]
-    chi_file = openpyxl.load_workbook(chi_file_name)
-    chi_sheet = chi_file[chi_sheet_name]
-    chi_sheet.append(chi_save)
-    chi_file.save(chi_file_name)
+    line = '\t'.join([str(i) for i in chi_save]) + '\n'
+
+    file_name = kwargs['start_time'] + '_' + kwargs['case'] + '.txt'
+    file_path = '../output/cc/' + file_name
+    file_exists = False
+    if os.path.isfile(file_path):
+        file_exists = True
+
+    with open(file_path, 'a+') as f:
+        if not file_exists:
+            f.write(header)
+        f.write(line)
+        f.close()
+    if kwargs['do_print_status']:
+        print("Consistency constraints saved.")
     return None
 
 
 def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
-                    test_mse, test_mae, test_smape, test_mase,
+                    test_mse, test_mae, test_mape, test_smape,
                     training_start_time, mlp_times, **kwargs):
     if kwargs['do_save_benchmark']:
+        header = (
+            'date\tseed\tmesh_size\ttile\tn_instances\tn_input\tn_classes\t'
+            + 'learning_rate\treg_coeff\tbatch_size\tepochs\tcc_coeff\t'
+            + 'kappa\tn_layers\tn_nodes\titer\tMSE\tMAE\tMAPE\tsMAPE\t'
+            + 'training_time\tML_execution_time'
+            + '\n'
+        )
         benchmark = [
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             kwargs['random_seed'],
             kwargs['mesh_size'],
             tile,
@@ -111,56 +140,85 @@ def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
             kwargs['kappa'],
             kwargs['num_hidden_layers'],
             kwargs['num_nodes'],
-            iteration + 1,
+            iteration,
             test_mse,
             test_mae,
+            test_mape,
             test_smape,
-            test_mase,
             int(time.perf_counter() - training_start_time),
             np.average(mlp_times)
         ]
-        benchmark_file = openpyxl.load_workbook(benchmark_file_name)
-        benchmark_sheet = benchmark_file[benchmark_sheet_name]
-        benchmark_sheet.append(benchmark)
-        benchmark_file.save(benchmark_file_name)
+        line = '\t'.join([str(i) for i in benchmark]) + '\n'
+
+        file_name = kwargs['start_time'] + '_' + kwargs['case'] + '.txt'
+        file_path = '../output/benchmarks/' + file_name
+        file_exists = False
+        if os.path.isfile(file_path):
+            file_exists = True
+
+        with open(file_path, 'a+') as f:
+            if not file_exists:
+                f.write(header)
+            f.write(line)
+            f.close()
         if kwargs['do_print_status']:
             print("Benchmarks saved.")
     return None
 
 
-def save_ml_estimates(estimates, inputs, iteration, tile, collection_mlp_estim,
-                      **kwargs):
+def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
+                      normalisation_stats, **kwargs):
+
+    def inv_normalise(value, mean, std):
+        return value * std + mean
+
     if (kwargs['do_save_estimates']
             and iteration in kwargs['iterations_to_save_estimates']):
         if kwargs['do_print_status']:
             print("Saving of MLP estimates ...")
-        estimates = [list(estimate) for estimate in estimates]
+
+        t_mean = normalisation_stats['time']['mean']
+        t_std = normalisation_stats['time']['std']
+
+        coord_mean = np.asarray(normalisation_stats['coord']['mean'])
+        coord_std = np.asarray(normalisation_stats['coord']['std'])
+
+        p_mean = normalisation_stats['poll']['mean']
+        p_std = normalisation_stats['poll']['std']
+
         # if we try to save the whole estimates array, we may get an error:
         # pymongo.errors.DocumentTooLarge: BSON document too large
         save = []
         for i, xinput in enumerate(inputs):
-            save.append({
-                'tile': tile,
-                'input': xinput,
-                'labels': estimates[i],
-                'settings': {
-                    'gamma': kwargs['cc_reg_coefficient'],
-                    'kappa': kwargs['kappa'],
+            t = inv_normalise(xinput[0], t_mean, t_std)
+            for p_i, poll in enumerate(normalisation_stats['pollutants']):
+                save.append({
+                    'case': kwargs['case'],
+                    'date': datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S'),
+                    'timestamp': t,
+                    'pollutant': poll,
+                    'coord': list(inv_normalise(xinput[-2:],
+                                                coord_mean, coord_std)),
+                    'value': inv_normalise(estimates[i][p_i],
+                                           p_mean[poll], p_std[poll]),
                     'iteration': iteration,
-                    'layers': kwargs['num_hidden_layers'],
-                    'neurons': kwargs['num_nodes'],
-                    'epochs': kwargs['num_epochs'],
-                    'batch size': kwargs['batch_size'],
-                    'learning rate': kwargs['starter_learning_rate'],
-                    'comment': kwargs['comment'],
-                    'seed': kwargs['random_seed']
-                }
-            })
-            # collect estimates in a batch and then write batch to database
-            if len(save) < 100000:
-                continue
-            collection_mlp_estim.insert_many(save)
-            save = []
+                    'settings': {
+                        'gamma': kwargs['cc_reg_coefficient'],
+                        'kappa': kwargs['kappa'],
+                        'layers': kwargs['num_hidden_layers'],
+                        'neurons': kwargs['num_nodes'],
+                        'epochs': kwargs['num_epochs'],
+                        'batch size': kwargs['batch_size'],
+                        'learning rate': kwargs['starter_learning_rate'],
+                        'comment': kwargs['cc_update_version'],
+                        'seed': kwargs['random_seed']
+                    }
+                })
+                # collect estimates in a batch and then write batch to database
+                if len(save) < 100000:
+                    continue
+                collection_mlp_estim.insert_many(save)
+                save = []
         # collect the last batch if not empty
         if len(save):
             collection_mlp_estim.insert_many(save)

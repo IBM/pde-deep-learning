@@ -51,7 +51,7 @@ Authors:
     Fearghal O'Donncha <feardonn@ie.ibm.com>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 30
 
 """
 
@@ -166,24 +166,41 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
     :param num_hidden_layers:
     :return:
     """
-    hidden = tf.nn.relu(tf.add(tf.matmul(input_data, weights['in']),
-                               biases['in']))
+    def dense(inp, w, b):
+        return tf.add(tf.matmul(inp, w), b)
+
+    hidden = dense(input_data, weights['in'], biases['in'])
+    hidden = tf.nn.relu(hidden)
+
     for i in range(num_hidden_layers):
         hkey = 'h' + str(i + 1)
         bkey = 'b' + str(i + 1)
-        hidden = tf.nn.relu(tf.add(tf.matmul(hidden, weights[hkey]),
-                                   biases[bkey]))
-    out_layer = tf.add(tf.matmul(hidden, weights['out']),
-                       biases['out'])
+        hidden = dense(hidden, weights[hkey], biases[bkey])
+        hidden = tf.nn.relu(hidden)
+
+    hidden = dense(hidden, weights['out'], biases['out'])
+    # out_layer = tf.nn.relu(hidden)
+    out_layer = hidden
     return out_layer
 
 
-def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
+def get_learning_rate(epoch, total_batch, **kwargs):
+    """ modularized for more fine tuning options """
+    decay_steps = 5000
+    lr = (kwargs['starter_learning_rate']
+          * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
+    )
+    return lr
+
+
+def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
+                        normalisation_stats, **kwargs):
     """
     :param data:
     :param mesh:
-    :param iteration:
+    :param iteration: 1-based
     :param collection_mlp_estim:
+    :param normalisation_stats:
     :param kwargs: params
     :return:
     """
@@ -192,7 +209,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
     for tile_num, tile in enumerate(kwargs['tiles']):
         if kwargs['do_print_status']:
             print(f'Training for tile {tile} ({tile_num + 1}/{mesh["size"]}) '
-                  f'at iteration {iteration + 1}/{kwargs["num_iterations"]}')
+                  f'at iteration {iteration}/{kwargs["num_iterations"]}')
         training_start_time = time.perf_counter()
 
         ############################
@@ -204,17 +221,19 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
         scaler = preprocessing.StandardScaler()
         scaler_wrap = preprocessing.StandardScaler()
+        do_normalize = False
         if kwargs['add_previous_labels_to_input']:
-            scaled_inputs = scaler.fit_transform(
-                np.asarray(data['input'][tile][:, :-num_classes])
-            )
-            scaled_labels = scaler_wrap.fit_transform(
-                np.asarray(data['input'][tile][:, -num_classes:])
-            )
+            scaled_inputs = np.asarray(data['input'][tile][:, :-num_classes])
+            scaled_labels = np.asarray(data['input'][tile][:, -num_classes:])
+            if do_normalize:
+                scaled_inputs = scaler.fit_transform(scaled_inputs)
+                scaled_labels = scaler_wrap.fit_transform(scaled_labels)
             inputs = np.concatenate([scaled_inputs, scaled_labels], axis=1)
         else:
             # normalize the data
-            inputs = scaler.fit_transform(np.asarray(data['input'][tile]))
+            inputs = np.asarray(data['input'][tile])
+            if do_normalize:
+                inputs = scaler.fit_transform(inputs)
 
         num_neighbors = len(mesh['neighbors'][tile])
         num_instances = inputs.shape[0]  # Number of instances
@@ -235,10 +254,13 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
         cc_input_train = {}
         if kwargs['use_consistency_constraints']:
             for neighbor in mesh['neighbors'][tile]:
-                if iteration:
-                    cc_input_train[neighbor] = scaler.transform(
-                        data['cc_input'][tile][neighbor]
-                    )
+                if iteration == 1:
+                    cc_input_train[neighbor] \
+                        = data['cc_input'][tile][neighbor]
+                    if do_normalize:
+                        cc_input_train[neighbor] = scaler.transform(
+                            cc_input_train[neighbor]
+                        )
                     # chi's are set at the end of each iteration
                 else:
                     cc_input_train[neighbor] = np.zeros(
@@ -338,29 +360,24 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                            + tf.maximum(zero, chi[n][1] - cc))
                 )
 
-        # construct cost, mse, mae and optimizer
+        # construct cost, metrics, and optimizer
         cost = (
             tf.reduce_mean(tf.square(predictions - tf_labels))
             + kwargs['l2_reg_coefficient'] * regularizer
             + kwargs['cc_reg_coefficient'] * cc_cost
         )
-        mse = tf.dtypes.cast(
-            tf.losses.mean_squared_error(tf_labels, predictions),
-            tf.float64
-        )
+        mse = tf.reduce_mean(tf.square(predictions - tf_labels))
         mae = tf.reduce_mean(tf.abs(predictions - tf_labels))
+        mape = tf.reduce_mean(tf.abs(predictions - tf_labels)
+                              / tf.abs(tf_labels))
         smape = tf.reduce_mean(
-            2 * tf.abs((predictions - tf_labels) / (predictions + tf_labels))
-        )
-        mase = mse / tf.reduce_mean(tf.abs(tf_labels[:-1] - tf_labels[1:]))
+            tf.abs((predictions - tf_labels)
+                   / (tf.abs(predictions) + tf.abs(tf_labels)))
+        )  # based on 100%
 
         global_step = tf.Variable(0, trainable=False)
-        learning_rate = tf.train.exponential_decay(
-            kwargs['starter_learning_rate'],
-            global_step,
-            10000,
-            kwargs['decay_factor'],
-            staircase=True)
+        # learning rate is defined based on epoch
+        learning_rate = tf.placeholder(tf.float32)
         optimizer = tf.train.AdamOptimizer(
             learning_rate=learning_rate
         ).minimize(cost, global_step=global_step)
@@ -396,7 +413,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
-            if iteration and kwargs['do_save_model']:
+            if iteration > 1 and kwargs['do_save_model']:
                 saver.restore(sess, save_path)
                 print("Model restored.")
 
@@ -427,19 +444,21 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                             cc_batch_xs.append(
                                 cc_input_train[neighbor][randidx_c, :]
                             )
-                            cc_batch_chi.append(
-                                [data['cc_chi'][tile][neighbor][0][randidx_c, :],
-                                 data['cc_chi'][tile][neighbor][1][randidx_c, :]
-                                 ]
-                            )
+                            cc_batch_chi.append([
+                                data['cc_chi'][tile][neighbor][0][randidx_c, :],
+                                data['cc_chi'][tile][neighbor][1][randidx_c, :]
+                            ])
                     # ToDo: allow for previous time stamp labels to be
-                    #  wrapped to input
+                    #       wrapped to input
                     # -> what are the previous time stamp labels for
                     # the new boundary receptors?
+
+                    lr = get_learning_rate(epoch, total_batch, **kwargs)
                     sess.run(optimizer,
                              feed_dict={tf_data: batch_xs, tf_labels: batch_ys,
                                         tf_cc_input: cc_batch_xs,
-                                        chi: cc_batch_chi})
+                                        chi: cc_batch_chi,
+                                        learning_rate: lr})
                     # Compute average loss
                     avg_cost += sess.run(
                         cost,
@@ -450,7 +469,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                     ) / total_batch
 
                 # Display logs per epoch step
-                if epoch % 50 == 0:
+                if epoch % 1 == 0:
                     if kwargs['do_print_status']:
                         print(f'Epoch: {epoch}/{kwargs["num_epochs"]} cost: '
                               f'{avg_cost:.3f} ({time.perf_counter() - t:.2f}'
@@ -459,20 +478,6 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             if kwargs['do_print_status']:
                 print("End of training.")
-
-            ##################
-            # Save estimates # ________________________________________________
-            ##################
-
-            if kwargs['do_print_status']:
-                print('Saving estimates')
-
-            mlp_run_time = time.perf_counter()
-            estimates = sess.run(predictions, feed_dict={tf_data: input_test})
-            mlp_times.append(time.perf_counter() - mlp_run_time)
-
-            usb.save_ml_estimates(estimates, data['input'][tile], iteration,
-                                  tile, collection_mlp_estim, **kwargs)
 
             ##############
             # Test model # ____________________________________________________
@@ -485,15 +490,28 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                                                 tf_labels: labels_test})
             test_mae = sess.run(mae, feed_dict={tf_data: input_test,
                                                 tf_labels: labels_test})
+            test_mape = sess.run(mape, feed_dict={tf_data: input_test,
+                                                  tf_labels: labels_test})
             test_smape = sess.run(smape, feed_dict={tf_data: input_test,
                                                     tf_labels: labels_test})
-            test_mase = sess.run(mase, feed_dict={tf_data: input_test,
-                                                  tf_labels: labels_test})
             if kwargs['do_print_status']:
-                print(f'MSE (test accuracy): {test_acc:.3f}')
+                print(f'MSE: {test_acc:.3f}')
                 print(f'MAE: {test_mae:.3f}')
+                print(f'MAPE: {test_mape:.3f}')
                 print(f'sMAPE: {test_smape:.3f}')
-                print(f'MASE: {test_mase:.3f}')
+
+            ##################
+            # Save estimates # ________________________________________________
+            ##################
+
+            mlp_run_time = time.perf_counter()
+            # inputs is scaled data['input'][tile]
+            estimates = sess.run(predictions, feed_dict={tf_data: inputs})
+            mlp_times.append(time.perf_counter() - mlp_run_time)
+
+            usb.save_ml_estimates(estimates, data['input'][tile], iteration,
+                                  collection_mlp_estim, normalisation_stats,
+                                  **kwargs)
 
             ###########################
             # Update consistency data # _______________________________________
@@ -534,9 +552,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                     # use trained model to predict labels at boundary
                     # transform coordinate choices to normalised input
                     # data for computing labels
-                    pre_consistency_data = scaler.transform(
-                        pre_consistency_data
-                    )
+                    if do_normalize:
+                        pre_consistency_data = scaler.transform(
+                            pre_consistency_data
+                        )
                     # compute labels
                     batch_ranges = range(0, len(pre_consistency_data) + 1,
                                          kwargs['batch_size'])
@@ -552,9 +571,11 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
                         for label_array in c_labels
                         for labels in label_array
                     ]
-                    # transform back the data
-                    consistency_data = scaler.inverse_transform(
-                        pre_consistency_data)
+                    if do_normalize:
+                        # transform back the data
+                        pre_consistency_data = scaler.inverse_transform(
+                            pre_consistency_data)
+                    consistency_data = pre_consistency_data
                     # replace wind and traffic data with data from
                     # neighboring tile
                     consistency_data[:emitter_len] = c_input_ngbr[:emitter_len]
@@ -581,7 +602,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim, **kwargs):
 
             usb.save_benchmarks(tile, iteration, num_instances, num_input,
                                 num_classes,
-                                test_acc, test_mae, test_smape, test_mase,
+                                test_acc, test_mae, test_mape, test_smape,
                                 training_start_time, mlp_times, **kwargs)
 
             if kwargs['do_save_model']:

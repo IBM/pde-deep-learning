@@ -1,3 +1,4 @@
+from datetime import datetime
 import numpy as np
 import tensorflow as tf
 
@@ -7,7 +8,8 @@ import util.util_ml_model as umm
 """ Script for training the ML model on pre-processed data.
 
 Description:
-    This module contains the settings and main loop for training the ML model
+    This module contains the settings and main loop for training the 
+    ML model
 
 -*- coding: utf-8 -*-
 
@@ -41,7 +43,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 30
 
 """
 
@@ -50,25 +52,27 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def get_parameters():
     """
-    use 'mesh_size': 2 for synthetic example
+    use 'mesh_size': 2 for synthetic example (Demo)
     use 'mesh_size': 12 for Dublin example
     select 'tiles': [i, j, k] for the tiles i, j, k that are part of the run
     The synthetic example has the two tiles 6 and 7.
     :return:
     """
-    param = {  # data parameters
-        'case': 'Demo',  # retrieves utilities based on this tag
-        'mesh_size': 2,  # tag which identifies pre-processed data
-        'tiles': [6, 7],  # list of id's of each of the sub-domain
+    param = {
+        # tags for data retrieval:
+        'case': 'Demo',  # 'Dublin' or 'Demo'
+        'mesh_size': 2,  # number of sub-domains in pre-processed collection
+        'tiles': [6, 7],  # list of id's to be used in modeling
+        # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
-        'num_iterations': 20,
-        'num_hidden_layers': 4,
-        'num_nodes': 42,
-        'num_epochs': 200,
+        'num_iterations': 11,
+        'num_hidden_layers': 5,
+        'num_nodes': 50,
+        'num_epochs': 50,
         'batch_size': 128,
-        'l2_reg_coefficient': 0.0001,  # weights are regularized with l2 norm
-        'starter_learning_rate': 0.001,
-        'decay_factor': 0.96,  # exponential decay
+        'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
+        'starter_learning_rate': 1e-3,
+        'decay_factor': 0.95,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
         # ToDo: allow True in update of consistency constraint data
@@ -80,11 +84,11 @@ def get_parameters():
         'cc_update_version': 'version 3',
         # check util.util_consistency_constraints
         # saving of output
-        'do_save_benchmark': False,
-        'do_save_cc': False,
-        'do_save_model': False,
-        'do_save_estimates': False,
-        'iterations_to_save_estimates': [0] + list(range(4, 10000, 5)),
+        'do_save_benchmark': True,
+        'do_save_cc': True,
+        'do_save_model': True,
+        'do_save_estimates': True,
+        'iterations_to_save_estimates': [1, 2, 5, 10, 20, 30, 40, 50],  # 1-based
         'do_print_status': True,
         # for reproducibility
         'random_seed': None
@@ -98,6 +102,7 @@ def main():
     if param['random_seed'] is None:
         param['random_seed'] = np.random.randint(2147483647)
     np.random.seed(param['random_seed'])
+    param['start_time'] = datetime.strftime(datetime.now(), '%y%m%d-%H%M%S')
 
     if param['do_print_status']:
         print(f'Using pre-processed data for {param["case"]} '
@@ -105,6 +110,8 @@ def main():
               )
         print(f'Hidden layers: {param["num_hidden_layers"]}\t '
               f'nodes: {param["num_nodes"]}\t')
+        print(f'learning rate: {param["starter_learning_rate"]}\t '
+              f'decay rate: {param["decay_factor"]}')
         print(f'Lambda: {param["cc_reg_coefficient"]}\t '
               f'kappa: {param["kappa"]}\t '
               f'epsilon: {param["epsilon"]}\n')
@@ -114,10 +121,21 @@ def main():
     data = umm.get_data(collections['data'], mesh, **param)
     if param['do_print_status']:
         print('Data loaded successfully.')
+        all_data = np.concatenate(list(data['labels'].values()))
+        print(f'Labels min: {np.min(all_data)}')
+        print(f'Labels median: {np.median(all_data)}')
+        print(f'Labels mean: {np.mean(all_data)}')
+        print(f'Labels max: {np.max(all_data)}\n')
 
-    for iteration in range(param['num_iterations']):
+    normalisation_stats = collections['data'].find({
+        'util.case': param['case']
+    })[0]['util']['utils']
+
+    # iterations are 1-based
+    for iteration in range(1, param['num_iterations'] + 1):
         mlp_times = umm.run_recursion_cycle(data, mesh, iteration,
-                                            collections['pred'], **param)
+                                            collections['pred'],
+                                            normalisation_stats, **param)
         if param['use_consistency_constraints']:
             ucc.update_consistency_constraints(data, mesh, iteration, **param)
         if param['do_print_status']:

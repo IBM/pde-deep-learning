@@ -38,7 +38,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 08 - 30
 
 """
 
@@ -193,58 +193,81 @@ def get_station_measurements(
     return measurements
 
 
-def get_caline_estimates(
-        collection_caline_estimates, date_start, date_end,
-        receptor_coords=None, **kwargs
+def get_estimates(
+        collection_estimates, date_start, date_end, **kwargs
 ):
     """
         Collects pollution estimate data from the
-        collection_pollution_estimates between the dates date_start and
-        date_end of a the run corresponding to run_tag
+        collection_estimates between the dates date_start and
+        date_end of a the run corresponding to filters set in kwargs
 
-    :param collection_caline_estimates: MongoDB collection
+    :param collection_estimates: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
     :param kwargs: Caline run identifiers
-    :param receptor_coords: (optional) if not None, it returns the
-                            timeline of Caline estimates for that
-                            receptor coordinate only.
-    :return: if receptor_coords is None:
-                 caline_estimates = {timestamp: {coord: {pollutant: value}}}
-             else:
-                 caline_estimates = {timestamp: {pollutant: value}}
+    :return: caline_estimates = {timestamp: {coord: {pollutant: value}}}
              receptor_list = [coord]
     """
-    caline_estimates = {}  # see docstring
+    estimates = {}  # see docstring
     receptor_list = []  # [(lat, lon)]
 
     filter_list = [
         {'timestamp': {'$gte': date_start.timestamp()}},
         {'timestamp': {'$lte': date_end.timestamp()}}
     ]
-    if receptor_coords is not None:
-        filter_list.append({'coord': receptor_coords})
     filter_list += [{k: v} for k, v in kwargs.items()]
 
     pipeline = [{'$match': {'$and': filter_list}}]
 
-    for caline_entry in collection_caline_estimates.aggregate(pipeline):
-        timestamp = caline_entry['timestamp']
-        coord = tuple(caline_entry['coord'])
-        poll = caline_entry['pollutant']
-        if timestamp not in caline_estimates:
-            caline_estimates[timestamp] = {}
-        if receptor_coords is None:
-            if coord not in caline_estimates[timestamp]:
-                caline_estimates[timestamp][coord] = {}
-            caline_estimates[timestamp][coord][poll] = caline_entry['value']
-        else:
-            caline_estimates[timestamp][poll] = caline_entry['value']
+    for entry in collection_estimates.aggregate(pipeline):
+        timestamp = entry['timestamp']
+        coord = tuple(entry['coord'])
+        poll = entry['pollutant']
+        if timestamp not in estimates:
+            estimates[timestamp] = {}
+        if coord not in estimates[timestamp]:
+            estimates[timestamp][coord] = {}
+        estimates[timestamp][coord][poll] = entry['value']
 
         if coord not in receptor_list:
             receptor_list.append(coord)
 
-    return caline_estimates, receptor_list
+    return estimates, receptor_list
+
+
+def get_estimates_for_receptor(
+        collection_estimates, date_start, date_end,
+        receptor_coord, **kwargs
+):
+    """
+        Collects pollution estimate data from the
+        collection_estimates between the dates date_start and
+        date_end of a the run corresponding to filters set in kwargs
+
+    :param collection_estimates: MongoDB collection
+    :param date_start: datetime object
+    :param date_end: datetime object
+    :param kwargs: Caline run identifiers
+    :param receptor_coord: [lat, lon]
+    :return: caline_estimates = {timestamp: {pollutant: value}}
+    """
+    estimates = defaultdict(dict)  # see docstring
+
+    filter_list = [
+        {'timestamp': {'$gte': date_start.timestamp()}},
+        {'timestamp': {'$lte': date_end.timestamp()}},
+        {'coord': receptor_coord}
+    ]
+    filter_list += [{k: v} for k, v in kwargs.items()]
+
+    pipeline = [{'$match': {'$and': filter_list}}]
+
+    for entry in collection_estimates.aggregate(pipeline):
+        timestamp = entry['timestamp']
+        poll = entry['pollutant']
+        estimates[timestamp][poll] = entry['value']
+
+    return estimates
 
 
 def db_util_entry_to_dict(entry, tiles=None):
