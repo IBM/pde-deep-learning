@@ -179,7 +179,8 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
         hidden = tf.nn.relu(hidden)
 
     hidden = dense(hidden, weights['out'], biases['out'])
-    out_layer = tf.nn.relu(hidden)
+    # out_layer = tf.nn.relu(hidden)
+    out_layer = hidden
     return out_layer
 
 
