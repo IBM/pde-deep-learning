@@ -420,7 +420,7 @@ def main():
                                                   traffic_links_sorted)
 
         print('Getting Caline data ...')
-        caline_estimates, receptor_list = uda.get_caline_estimates(
+        caline_estimates, receptor_list = uda.get_estimates(
             collection_caline_estimates,
             param['date start'], param['date end'],
             **tag_dict
