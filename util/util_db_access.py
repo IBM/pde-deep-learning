@@ -1,6 +1,4 @@
 from collections import defaultdict
-import datetime
-import numpy as np
 
 """ Utility methods for retrieving data from a MongoDB.
 
@@ -195,22 +193,22 @@ def get_station_measurements(
     return measurements
 
 
-def get_caline_estimates(
-        collection_caline_estimates, date_start, date_end, **kwargs
+def get_estimates(
+        collection_estimates, date_start, date_end, **kwargs
 ):
     """
         Collects pollution estimate data from the
-        collection_pollution_estimates between the dates date_start and
-        date_end of a the run corresponding to run_tag
+        collection_estimates between the dates date_start and
+        date_end of a the run corresponding to filters set in kwargs
 
-    :param collection_caline_estimates: MongoDB collection
+    :param collection_estimates: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
     :param kwargs: Caline run identifiers
     :return: caline_estimates = {timestamp: {coord: {pollutant: value}}}
              receptor_list = [coord]
     """
-    caline_estimates = {}  # see docstring
+    estimates = {}  # see docstring
     receptor_list = []  # [(lat, lon)]
 
     filter_list = [
@@ -221,39 +219,39 @@ def get_caline_estimates(
 
     pipeline = [{'$match': {'$and': filter_list}}]
 
-    for caline_entry in collection_caline_estimates.aggregate(pipeline):
-        timestamp = caline_entry['timestamp']
-        coord = tuple(caline_entry['coord'])
-        poll = caline_entry['pollutant']
-        if timestamp not in caline_estimates:
-            caline_estimates[timestamp] = {}
-        if coord not in caline_estimates[timestamp]:
-            caline_estimates[timestamp][coord] = {}
-        caline_estimates[timestamp][coord][poll] = caline_entry['value']
+    for entry in collection_estimates.aggregate(pipeline):
+        timestamp = entry['timestamp']
+        coord = tuple(entry['coord'])
+        poll = entry['pollutant']
+        if timestamp not in estimates:
+            estimates[timestamp] = {}
+        if coord not in estimates[timestamp]:
+            estimates[timestamp][coord] = {}
+        estimates[timestamp][coord][poll] = entry['value']
 
         if coord not in receptor_list:
             receptor_list.append(coord)
 
-    return caline_estimates, receptor_list
+    return estimates, receptor_list
 
 
-def get_caline_estimates_for_receptor(
-        collection_caline_estimates, date_start, date_end,
+def get_estimates_for_receptor(
+        collection_estimates, date_start, date_end,
         receptor_coord, **kwargs
 ):
     """
         Collects pollution estimate data from the
-        collection_pollution_estimates between the dates date_start and
-        date_end of a the run corresponding to run_tag
+        collection_estimates between the dates date_start and
+        date_end of a the run corresponding to filters set in kwargs
 
-    :param collection_caline_estimates: MongoDB collection
+    :param collection_estimates: MongoDB collection
     :param date_start: datetime object
     :param date_end: datetime object
     :param kwargs: Caline run identifiers
     :param receptor_coord: [lat, lon]
     :return: caline_estimates = {timestamp: {pollutant: value}}
     """
-    caline_estimates = defaultdict(dict)  # see docstring
+    estimates = defaultdict(dict)  # see docstring
 
     filter_list = [
         {'timestamp': {'$gte': date_start.timestamp()}},
@@ -264,71 +262,12 @@ def get_caline_estimates_for_receptor(
 
     pipeline = [{'$match': {'$and': filter_list}}]
 
-    for caline_entry in collection_caline_estimates.aggregate(pipeline):
-        timestamp = caline_entry['timestamp']
-        poll = caline_entry['pollutant']
-        caline_estimates[timestamp][poll] = caline_entry['value']
+    for entry in collection_estimates.aggregate(pipeline):
+        timestamp = entry['timestamp']
+        poll = entry['pollutant']
+        estimates[timestamp][poll] = entry['value']
 
-    return caline_estimates
-
-
-def get_ml_estimates_for_receptor(
-        collection_ml_estimates, collection_util, date_start, date_end,
-        receptor_coord, **kwargs
-):
-    coord = tuple(receptor_coord)
-
-    def pre_proc_t(t):
-        return (t - (end_timestamp + start_timestamp) / 2) \
-               / ((end_timestamp - start_timestamp) / 12)
-
-    def inv_proc_t(t):
-        return t * (end_timestamp - start_timestamp) \
-               / 12 + (end_timestamp + start_timestamp) / 2
-
-    start_timestamp = datetime.datetime(2017, 7, 1, 0).timestamp()
-    end_timestamp = datetime.datetime(2018, 5, 2, 23).timestamp()
-    date = date_start
-    time_step = datetime.timedelta(hours=1)
-    times = []
-    while date <= date_end:
-        times.append(pre_proc_t(date.timestamp()))
-        date += time_step
-
-    entries = collection_util.find()
-    utilities = [db_util_entry_to_dict(entry) for entry in entries]
-    index = 0
-    norm_list = []
-    for util in utilities:
-        if coord in util['receptors_index']:
-            index = util['receptors_index'][coord]['index']
-            norm_list = list(util['bounding_box'].values())
-            break
-
-    coord_mean = np.mean(np.transpose(norm_list), 1)
-    coord_std = np.std(np.transpose(norm_list), 1)
-
-    mlp_receptor_coord = list(
-        (np.asarray(receptor_coord) - coord_mean) / coord_std
-    )
-
-    ml_filter = {
-        'input.0': {'$in': times},
-        'input': {'$all': mlp_receptor_coord}
-    }
-    for key, value in kwargs.items():
-        ml_filter[key] = value
-
-    collection = collection_ml_estimates.find(ml_filter)
-
-    mlp_estimates = defaultdict(dict)
-    for entry in collection:
-        t = inv_proc_t(entry['input'][0])
-        num_pollutants = entry['labels'] // 20
-        # index = int(entry['input'][105:].index(mlp_receptor_coord[0])/2)
-        mlp_estimates[t]['NO2'] = entry['labels'][(index-1)*num_pollutants]
-
-    return mlp_estimates
+    return estimates
 
 
 def db_util_entry_to_dict(entry, tiles=None):
