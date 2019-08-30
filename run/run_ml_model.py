@@ -65,14 +65,14 @@ def get_parameters():
         'tiles': [6, 7],  # list of id's to be used in modeling
         # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
-        'num_iterations': 10,
-        'num_hidden_layers': 3,
+        'num_iterations': 11,
+        'num_hidden_layers': 5,
         'num_nodes': 50,
-        'num_epochs': 10,
+        'num_epochs': 50,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
-        'starter_learning_rate': 1e-4,
-        'decay_factor': 0.9,  # exponential decay
+        'starter_learning_rate': 1e-3,
+        'decay_factor': 0.95,  # exponential decay
         'train_to_test_split': 0.9,  # train_% + test_% = 1
         'add_previous_labels_to_input': False,
         # ToDo: allow True in update of consistency constraint data
@@ -88,7 +88,7 @@ def get_parameters():
         'do_save_cc': True,
         'do_save_model': True,
         'do_save_estimates': True,
-        'iterations_to_save_estimates': [1, 2, 5, 8],  # 1-based
+        'iterations_to_save_estimates': [1, 2, 5, 10, 20, 30, 40, 50],  # 1-based
         'do_print_status': True,
         # for reproducibility
         'random_seed': None
