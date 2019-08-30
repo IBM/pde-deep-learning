@@ -184,23 +184,11 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
 
 
 def get_learning_rate(epoch, total_batch, **kwargs):
-    if False:
-        pass
-    # if epoch < 5:
-    #     lr = 1e-2
-    # elif epoch < 10:
-    #     lr = 1e-1
-    # elif epoch < 20:
-    #     lr = 1e-2
-    # elif epoch < 30:
-    #     lr = 1e-3
-    # elif epoch < 50:
-    #     lr = 1e-4
-    else:
-        decay_steps = 5000
-        lr = (kwargs['starter_learning_rate']
-              * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
-        )
+    """ modularized for more fine tuning options """
+    decay_steps = 5000
+    lr = (kwargs['starter_learning_rate']
+          * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
+    )
     return lr
 
 
@@ -232,19 +220,19 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
 
         scaler = preprocessing.StandardScaler()
         scaler_wrap = preprocessing.StandardScaler()
+        do_normalize = False
         if kwargs['add_previous_labels_to_input']:
-            scaled_inputs = scaler.fit_transform(
-                np.asarray(data['input'][tile][:, :-num_classes])
-            )
-            scaled_labels = scaler_wrap.fit_transform(
-                np.asarray(data['input'][tile][:, -num_classes:])
-            )
+            scaled_inputs = np.asarray(data['input'][tile][:, :-num_classes])
+            scaled_labels = np.asarray(data['input'][tile][:, -num_classes:])
+            if do_normalize:
+                scaled_inputs = scaler.fit_transform(scaled_inputs)
+                scaled_labels = scaler_wrap.fit_transform(scaled_labels)
             inputs = np.concatenate([scaled_inputs, scaled_labels], axis=1)
         else:
             # normalize the data
-            inputs = scaler.fit_transform(
-                np.asarray(data['input'][tile])
-            )
+            inputs = np.asarray(data['input'][tile])
+            if do_normalize:
+                inputs = scaler.fit_transform(inputs)
 
         num_neighbors = len(mesh['neighbors'][tile])
         num_instances = inputs.shape[0]  # Number of instances
@@ -266,9 +254,12 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
         if kwargs['use_consistency_constraints']:
             for neighbor in mesh['neighbors'][tile]:
                 if iteration == 1:
-                    cc_input_train[neighbor] = scaler.transform(
-                        data['cc_input'][tile][neighbor]
-                    )
+                    cc_input_train[neighbor] \
+                        = data['cc_input'][tile][neighbor]
+                    if do_normalize:
+                        cc_input_train[neighbor] = scaler.transform(
+                            cc_input_train[neighbor]
+                        )
                     # chi's are set at the end of each iteration
                 else:
                     cc_input_train[neighbor] = np.zeros(
@@ -368,7 +359,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                            + tf.maximum(zero, chi[n][1] - cc))
                 )
 
-        # construct cost, mse, mae and optimizer
+        # construct cost, metrics, and optimizer
         cost = (
             tf.reduce_mean(tf.square(predictions - tf_labels))
             + kwargs['l2_reg_coefficient'] * regularizer
@@ -487,22 +478,6 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
             if kwargs['do_print_status']:
                 print("End of training.")
 
-            ##################
-            # Save estimates # ________________________________________________
-            ##################
-
-            if kwargs['do_print_status']:
-                print('Saving estimates')
-
-            mlp_run_time = time.perf_counter()
-            # inputs is scaled data['input'][tile]
-            estimates = sess.run(predictions, feed_dict={tf_data: inputs})
-            mlp_times.append(time.perf_counter() - mlp_run_time)
-
-            usb.save_ml_estimates(estimates, data['input'][tile], iteration,
-                                  tile, collection_mlp_estim,
-                                  normalisation_stats, **kwargs)
-
             ##############
             # Test model # ____________________________________________________
             ##############
@@ -523,6 +498,19 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 print(f'MAE: {test_mae:.3f}')
                 print(f'MAPE: {test_mape:.3f}')
                 print(f'sMAPE: {test_smape:.3f}')
+
+            ##################
+            # Save estimates # ________________________________________________
+            ##################
+
+            mlp_run_time = time.perf_counter()
+            # inputs is scaled data['input'][tile]
+            estimates = sess.run(predictions, feed_dict={tf_data: inputs})
+            mlp_times.append(time.perf_counter() - mlp_run_time)
+
+            usb.save_ml_estimates(estimates, data['input'][tile], iteration,
+                                  collection_mlp_estim, normalisation_stats,
+                                  **kwargs)
 
             ###########################
             # Update consistency data # _______________________________________
@@ -563,9 +551,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                     # use trained model to predict labels at boundary
                     # transform coordinate choices to normalised input
                     # data for computing labels
-                    pre_consistency_data = scaler.transform(
-                        pre_consistency_data
-                    )
+                    if do_normalize:
+                        pre_consistency_data = scaler.transform(
+                            pre_consistency_data
+                        )
                     # compute labels
                     batch_ranges = range(0, len(pre_consistency_data) + 1,
                                          kwargs['batch_size'])
@@ -581,9 +570,11 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                         for label_array in c_labels
                         for labels in label_array
                     ]
-                    # transform back the data
-                    consistency_data = scaler.inverse_transform(
-                        pre_consistency_data)
+                    if do_normalize:
+                        # transform back the data
+                        pre_consistency_data = scaler.inverse_transform(
+                            pre_consistency_data)
+                    consistency_data = pre_consistency_data
                     # replace wind and traffic data with data from
                     # neighboring tile
                     consistency_data[:emitter_len] = c_input_ngbr[:emitter_len]
