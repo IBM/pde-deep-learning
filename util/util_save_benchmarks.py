@@ -177,20 +177,20 @@ def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
         if kwargs['do_print_status']:
             print("Saving of MLP estimates ...")
 
-        t_mean = normalisation_stats['time']['mean']
-        t_std = normalisation_stats['time']['std']
+        t_max = normalisation_stats['time']['max']
+        t_min = normalisation_stats['time']['min']
 
         coord_mean = np.asarray(normalisation_stats['coord']['mean'])
         coord_std = np.asarray(normalisation_stats['coord']['std'])
 
-        p_mean = normalisation_stats['poll']['mean']
-        p_std = normalisation_stats['poll']['std']
+        p_max = normalisation_stats['poll']['max']
+        p_min = normalisation_stats['poll']['min']
 
         # if we try to save the whole estimates array, we may get an error:
         # pymongo.errors.DocumentTooLarge: BSON document too large
         save = []
         for i, xinput in enumerate(inputs):
-            t = inv_normalise(xinput[0], t_mean, t_std)
+            t = inv_normalise(xinput[0], t_min, t_max - t_min)
             for p_i, poll in enumerate(normalisation_stats['pollutants']):
                 save.append({
                     'case': kwargs['case'],
@@ -200,7 +200,8 @@ def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
                     'coord': list(inv_normalise(xinput[-2:],
                                                 coord_mean, coord_std)),
                     'value': inv_normalise(estimates[i][p_i],
-                                           p_mean[poll], p_std[poll]),
+                                           p_min[poll],
+                                           p_max[poll] - p_min[poll]),
                     'iteration': iteration,
                     'settings': {
                         'gamma': kwargs['cc_reg_coefficient'],

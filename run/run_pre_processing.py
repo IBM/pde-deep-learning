@@ -142,7 +142,7 @@ def pre_process(collection_pre, mesh,
 
     def normalize_time(_timestamp):
         """ :param _timestamp: (float) timestamp """
-        return normalize(_timestamp, time_mean, time_std)
+        return normalize(_timestamp, mean=time_min, std=time_max - time_min)
 
     def normalize_weather(_weather_list):
         """ :param _weather_list: [wind_dir, wind_spd, wind_dir_std, temp] """
@@ -158,12 +158,13 @@ def pre_process(collection_pre, mesh,
         return list(normalize(np.asarray(_coords), coord_mean, coord_std))
 
     def normalize_concentrations(_concentration, _type):
-        return normalize(_concentration, poll_mean[_type], poll_std[_type])
+        return normalize(_concentration, mean=poll_min[_type],
+                         std=poll_max[_type] - poll_min[_type])
 
     time_interval = [kwargs['date start'].timestamp(),
                      kwargs['date end'].timestamp()]
-    time_mean = np.mean(time_interval)
-    time_std = np.std(time_interval)
+    time_max = np.max(time_interval)
+    time_min = np.min(time_interval)
 
     weather_values = np.transpose(list(weather_data.values()))
     weather_mean = np.mean(weather_values, 1)
@@ -181,14 +182,14 @@ def pre_process(collection_pre, mesh,
     coord_mean = np.mean(bounding_box, 1)
     coord_std = np.std(bounding_box, 1)
 
-    poll_mean = {
-        _type.get_name(): np.mean([p[_type.get_name()]
-                                   for rec in caline_estimates.values()
-                                   for p in rec.values()])
+    poll_max = {
+        _type.get_name(): np.max([p[_type.get_name()]
+                                  for rec in caline_estimates.values()
+                                  for p in rec.values()])
         for _type in u_pol.Pollutant
     }
-    poll_std = {
-        _type.get_name(): np.std([p[_type.get_name()]
+    poll_min = {
+        _type.get_name(): np.min([p[_type.get_name()]
                                   for rec in caline_estimates.values()
                                   for p in rec.values()])
         for _type in u_pol.Pollutant
@@ -309,8 +310,8 @@ def pre_process(collection_pre, mesh,
         'sub domain selection': kwargs['sub domain selection'],
         'pollutants': kwargs['pollutants'],
         'time': {
-            'mean': time_mean,
-            'std': time_std
+            'max': time_max,
+            'min': time_min
         },
         'weather': {
             'mean': list(weather_mean),
@@ -325,8 +326,8 @@ def pre_process(collection_pre, mesh,
             'std': volumes_std
         },
         'poll': {
-            'mean': poll_mean,
-            'std': poll_std
+            'max': poll_max,
+            'min': poll_min
         }
     }
 
