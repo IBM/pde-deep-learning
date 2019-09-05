@@ -199,7 +199,9 @@ def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
                     'pollutant': poll,
                     'coord': list(inv_normalise(xinput[-2:],
                                                 coord_mean, coord_std)),
-                    'value': inv_normalise(estimates[i][p_i],
+                    # remove offset from pre-processing step that allowed for
+                    # computation of MAPE
+                    'value': inv_normalise(estimates[i][p_i] - 0.1,
                                            p_min[poll],
                                            p_max[poll] - p_min[poll]),
                     'iteration': iteration,

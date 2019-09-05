@@ -141,7 +141,8 @@ def pre_process(collection_pre, mesh,
             return val
 
     def normalize_time(_timestamp):
-        """ :param _timestamp: (float) timestamp """
+        """ Normalize [0, 1] based.
+        :param _timestamp: (float) timestamp """
         return normalize(_timestamp, mean=time_min, std=time_max - time_min)
 
     def normalize_weather(_weather_list):
@@ -158,8 +159,13 @@ def pre_process(collection_pre, mesh,
         return list(normalize(np.asarray(_coords), coord_mean, coord_std))
 
     def normalize_concentrations(_concentration, _type):
+        """ Normalize [0, 1] based; offset normalization by 0.1 to
+        allow computation of MAPE.
+        :param _concentration: (float)
+        :param _type: (str) pollution type
+        """
         return normalize(_concentration, mean=poll_min[_type],
-                         std=poll_max[_type] - poll_min[_type])
+                         std=poll_max[_type] - poll_min[_type]) + 0.1
 
     time_interval = [kwargs['date start'].timestamp(),
                      kwargs['date end'].timestamp()]
