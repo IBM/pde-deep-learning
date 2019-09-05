@@ -170,17 +170,16 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
         return tf.add(tf.matmul(inp, w), b)
 
     hidden = dense(input_data, weights['in'], biases['in'])
-    hidden = tf.nn.relu(hidden)
+    hidden = tf.nn.leaky_relu(hidden, alpha=0.1)
 
     for i in range(num_hidden_layers):
         hkey = 'h' + str(i + 1)
         bkey = 'b' + str(i + 1)
         hidden = dense(hidden, weights[hkey], biases[bkey])
-        hidden = tf.nn.relu(hidden)
+        hidden = tf.nn.leaky_relu(hidden, alpha=0.1)
 
     hidden = dense(hidden, weights['out'], biases['out'])
-    # out_layer = tf.nn.relu(hidden)
-    out_layer = hidden
+    out_layer = tf.nn.leaky_relu(hidden, alpha=0.1)
     return out_layer
 
 
