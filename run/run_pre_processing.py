@@ -159,13 +159,14 @@ def pre_process(collection_pre, mesh,
         return list(normalize(np.asarray(_coords), coord_mean, coord_std))
 
     def normalize_concentrations(_concentration, _type):
-        """ Normalize [0, 1] based; offset normalization by 0.1 to
-        allow computation of MAPE.
+        """ Normalize [0, 1] based; offset normalization to
+        allow computation of MAPE. If the offset is changed, make sure
+        to also change it in util_save_benchmarks.save_ml_estimates().
         :param _concentration: (float)
         :param _type: (str) pollution type
         """
         return normalize(_concentration, mean=poll_min[_type],
-                         std=poll_max[_type] - poll_min[_type]) + 0.1
+                         std=poll_max[_type] - poll_min[_type]) + 1e-4
 
     time_interval = [kwargs['date start'].timestamp(),
                      kwargs['date end'].timestamp()]

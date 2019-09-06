@@ -201,7 +201,7 @@ def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
                                                 coord_mean, coord_std)),
                     # remove offset from pre-processing step that allowed for
                     # computation of MAPE
-                    'value': inv_normalise(estimates[i][p_i] - 0.1,
+                    'value': inv_normalise(estimates[i][p_i] - 1e-4,
                                            p_min[poll],
                                            p_max[poll] - p_min[poll]),
                     'iteration': iteration,
