@@ -119,9 +119,9 @@ def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
     if kwargs['do_save_benchmark']:
         header = (
             'date\tseed\tmesh_size\ttile\tn_instances\tn_input\tn_classes\t'
-            + 'learning_rate\treg_coeff\tbatch_size\tepochs\tcc_coeff\t'
-            + 'kappa\tn_layers\tn_nodes\titer\tMSE\tMAE\tMAPE\tsMAPE\t'
-            + 'training_time\tML_execution_time'
+            + 'learning_rate\tdecay_factor\treg_coeff\tbatch_size\tepochs\t'
+            + 'cc_coeff\tkappa\tn_layers\tn_nodes\titer\tMSE\tMAE\tMAPE\t'
+            + 'sMAPE\ttraining_time\tML_execution_time'
             + '\n'
         )
         benchmark = [
@@ -133,6 +133,7 @@ def save_benchmarks(tile, iteration, num_instances, num_input, num_classes,
             num_input,
             num_classes,
             kwargs['starter_learning_rate'],
+            kwargs['decay_factor'],
             kwargs['l2_reg_coefficient'],
             kwargs['batch_size'],
             kwargs['num_epochs'],
@@ -199,9 +200,7 @@ def save_ml_estimates(estimates, inputs, iteration, collection_mlp_estim,
                     'pollutant': poll,
                     'coord': list(inv_normalise(xinput[-2:],
                                                 coord_mean, coord_std)),
-                    # remove offset from pre-processing step that allowed for
-                    # computation of MAPE
-                    'value': inv_normalise(estimates[i][p_i] - 1e-4,
+                    'value': inv_normalise(estimates[i][p_i],
                                            p_min[poll],
                                            p_max[poll] - p_min[poll]),
                     'iteration': iteration,
