@@ -51,7 +51,7 @@ Authors:
     Fearghal O'Donncha <feardonn@ie.ibm.com>
 
 Last updated:
-    2019 - 08 - 30
+    2019 - 09 - 11
 
 """
 
@@ -253,9 +253,9 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
         cc_input_train = {}
         if kwargs['use_consistency_constraints']:
             for neighbor in mesh['neighbors'][tile]:
-                if iteration == 1:
+                if iteration > 1:
                     cc_input_train[neighbor] \
-                        = data['cc_input'][tile][neighbor]
+                        = np.array(data['cc_input'][tile][neighbor])
                     if do_normalize:
                         cc_input_train[neighbor] = scaler.transform(
                             cc_input_train[neighbor]
