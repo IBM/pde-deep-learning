@@ -84,9 +84,10 @@ def get_mesh(collection_util, **kwargs):
     """
     utilities = uda.get_utilities_from_collection(collection_util,
                                                   case=kwargs['case'])
-    max_links = max([
-        len(domain['links']) for domain in utilities['domain_dict'].values()
-    ])
+    num_links = {
+        tile: len(domain['links'])
+        for tile, domain in utilities['domain_dict'].items()
+    }
     # important to select only those tiles and neighbors that are there!
     neighbors_select = {k: [n for n in v if n in kwargs['tiles']]
                         for k, v in utilities['domain_neighbors'].items()
@@ -97,7 +98,7 @@ def get_mesh(collection_util, **kwargs):
                             if k in kwargs['tiles']}
     bounding_box = np.transpose(list(utilities['bounding_box'].values()))
 
-    mesh = {'max_links': max_links,
+    mesh = {'num_links': num_links,
             'neighbors': neighbors_select,
             'intersections': intersections_select,
             'coord_mean': np.mean(bounding_box, 1),
@@ -471,7 +472,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 if epoch % 1 == 0:
                     if kwargs['do_print_status']:
                         print(f'Epoch: {epoch}/{kwargs["num_epochs"]} cost: '
-                              f'{avg_cost:.3f} ({time.perf_counter() - t:.2f}'
+                              f'{avg_cost:.6f} ({time.perf_counter() - t:.2f}'
                               f's)')
                     t = time.perf_counter()
 
@@ -494,10 +495,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
             test_smape = sess.run(smape, feed_dict={tf_data: input_test,
                                                     tf_labels: labels_test})
             if kwargs['do_print_status']:
-                print(f'MSE: {test_acc:.3f}')
-                print(f'MAE: {test_mae:.3f}')
-                print(f'MAPE: {test_mape:.3f}')
-                print(f'sMAPE: {test_smape:.3f}')
+                print(f'MSE: {test_acc:.6f}')
+                print(f'MAE: {test_mae:.6f}')
+                print(f'MAPE: {test_mape:.6f}')
+                print(f'sMAPE: {test_smape:.6f}')
 
             ##################
             # Save estimates # ________________________________________________
@@ -528,7 +529,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 # 1 == len(timestamp)
                 # 4 == len(weather_data)
                 # 5 == len(traffic_source)
-                emitter_len = 1 + 4 + 5 * mesh['max_links']
+                emitter_len = 1 + 4 + 5 * mesh['num_links'][tile]
 
                 for neighbor in mesh['neighbors'][tile]:
                     boundary = tuple(sorted([tile, neighbor]))

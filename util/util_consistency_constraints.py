@@ -202,7 +202,7 @@ def move_receptor_positions_to_boundary(c_input_tile, mesh, data, tile,
     n_input = data['input'][tile].shape[1]
     n_labels = data['labels'][tile].shape[1]
     # 1 = len(timestamp); 4 = len(weather_data); 5 = len(traffic_source)
-    emitter_len = 1 + 4 + 5 * mesh['max_links']
+    emitter_len = 1 + 4 + 5 * mesh['num_links'][tile]
     if kwargs['add_previous_labels_to_input']:
         # 2 coords per receptor
         num_c_receptors = int((n_input - n_labels - emitter_len) / 2)
