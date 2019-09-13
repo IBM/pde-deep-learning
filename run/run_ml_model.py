@@ -108,8 +108,8 @@ def get_collections(port=27018):
     """
     client_internal = pymongo.MongoClient('localhost', port=port)
     util = client_internal.db_air_quality.util
-    data = client_internal.db_air_quality.proc_estimates
-    predictions = client_internal.db_air_quality.ml_estimates
+    data = client_internal.db_air_quality.proc_estimates_PM10
+    predictions = client_internal.db_air_quality.ml_estimates_cc_PM10
     collections = {'util': util,
                    'data': data,
                    'pred': predictions}
@@ -137,6 +137,9 @@ def main():
               f'epsilon: {param["epsilon"]}\n')
         print('Loading data ...')
     collections = get_collections()
+    if param['do_print_status']:
+        print(f'Data is taken from {collections["data"].name}.')
+        print(f'ML estimates are written to {collections["pred"].name}.')
     mesh = umm.get_mesh(collections['util'], **param)
     data = umm.get_data(collections['data'], mesh, **param)
     if param['do_print_status']:
