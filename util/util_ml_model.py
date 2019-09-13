@@ -51,7 +51,7 @@ Authors:
     Fearghal O'Donncha <feardonn@ie.ibm.com>
 
 Last updated:
-    2019 - 09 - 11
+    2019 - 09 - 12
 
 """
 
@@ -208,7 +208,8 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
     mlp_times = []
     for tile_num, tile in enumerate(kwargs['tiles']):
         if kwargs['do_print_status']:
-            print(f'Training for tile {tile} ({tile_num + 1}/{mesh["size"]}) '
+            print(f'Training for tile {tile} '
+                  f'({tile_num + 1}/{len(kwargs["tiles"])}) '
                   f'at iteration {iteration}/{kwargs["num_iterations"]}')
         training_start_time = time.perf_counter()
 
@@ -532,6 +533,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 emitter_len = 1 + 4 + 5 * mesh['num_links'][tile]
 
                 for neighbor in mesh['neighbors'][tile]:
+                    emitter_len_ngbr = 1 + 4 + 5 * mesh['num_links'][neighbor]
                     boundary = tuple(sorted([tile, neighbor]))
                     # choose a number of inputs for which to use the
                     # emission data for boundary receptors
@@ -549,7 +551,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                             num_samples=kwargs['batch_size'], **kwargs
                         )
                     # Get boundary predictions:
-                    # use trained model to predict labels at boundary
+                    # use trained model to predict labels at boundary,
                     # transform coordinate choices to normalised input
                     # data for computing labels
                     if do_normalize:
@@ -575,10 +577,13 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                         # transform back the data
                         pre_consistency_data = scaler.inverse_transform(
                             pre_consistency_data)
-                    consistency_data = pre_consistency_data
                     # replace wind and traffic data with data from
                     # neighboring tile
-                    consistency_data[:emitter_len] = c_input_ngbr[:emitter_len]
+                    emitters = np.array(c_input_ngbr)[:, :emitter_len_ngbr]
+                    receptors = np.array(pre_consistency_data)[:, emitter_len:]
+                    consistency_data = np.transpose(np.concatenate(
+                        (np.transpose(emitters), np.transpose(receptors))
+                    ))
 
                     c_input_new[neighbor][tile] = (
                         np.concatenate((c_input_new[neighbor][tile],

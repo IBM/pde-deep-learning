@@ -41,7 +41,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 01
+    2019 - 09 - 13
 
 """
 
@@ -182,12 +182,17 @@ def get_boundary_receptor_emission_data(data, tile, neighbor, boundary,
                     c_emitters['ngbr'][boundary].append(n_instance)
                     break
             timestamps.append(instance[0])
-        max_len = (
+        max_len_t = (
             int(len(c_emitters['tile'][boundary]) / num_samples) * num_samples
         )
+        max_len_n = (
+            int(len(c_emitters['ngbr'][boundary]) / num_samples) * num_samples
+        )
 
-        c_input_tile = c_emitters['tile'][boundary][:max_len]
-        c_input_ngbr = c_emitters['ngbr'][boundary][:max_len]
+        c_emitters['tile'][boundary] = c_emitters['tile'][boundary][:max_len_t]
+        c_emitters['ngbr'][boundary] = c_emitters['ngbr'][boundary][:max_len_n]
+        c_input_tile = c_emitters['tile'][boundary]
+        c_input_ngbr = c_emitters['ngbr'][boundary]
     return c_input_tile, c_input_ngbr
 
 
@@ -237,8 +242,6 @@ def move_receptor_positions_to_boundary(c_input_tile, mesh, data, tile,
         for emitters in c_input_tile
     ]
     # select num_samples many samples
-    pre_consistency_data = \
-        pre_consistency_data[
-            :int(len(pre_consistency_data) / num_samples) * num_samples
-        ]
+    mult = int(len(pre_consistency_data) / num_samples) * num_samples
+    pre_consistency_data = pre_consistency_data[:mult]
     return pre_consistency_data
