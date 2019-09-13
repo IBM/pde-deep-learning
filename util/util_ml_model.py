@@ -1,7 +1,6 @@
 from collections import defaultdict
 from operator import add
 import numpy as np
-import pymongo
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 import time
@@ -51,29 +50,11 @@ Authors:
     Fearghal O'Donncha <feardonn@ie.ibm.com>
 
 Last updated:
-    2019 - 09 - 12
+    2019 - 09 - 13
 
 """
 
 model_path = "../output/models/"
-
-
-def get_collections(port=27018):
-    """
-    get: collection of utility data
-         collection to draw data from
-         collection to write trained MLP output to
-    :param port: of the mongoDB database
-    :return: collections
-    """
-    client_internal = pymongo.MongoClient('localhost', port=port)
-    util = client_internal.db_air_quality.util
-    data = client_internal.db_air_quality.proc_estimates
-    predictions = client_internal.db_air_quality.ml_estimates
-    collections = {'util': util,
-                   'data': data,
-                   'pred': predictions}
-    return collections
 
 
 def get_mesh(collection_util, **kwargs):
@@ -187,8 +168,9 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
 def get_learning_rate(epoch, total_batch, **kwargs):
     """ modularized for more fine tuning options """
     decay_steps = 5000
-    lr = (kwargs['starter_learning_rate']
-          * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
+    lr = (
+        kwargs['starter_learning_rate']
+        * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
     )
     return lr
 
