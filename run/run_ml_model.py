@@ -1,5 +1,6 @@
 from datetime import datetime
 import numpy as np
+import pymongo
 import tensorflow as tf
 
 import util.util_consistency_constraints as ucc
@@ -43,7 +44,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 30
+    2019 - 09 - 13
 
 """
 
@@ -52,10 +53,10 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def get_parameters():
     """
-    use 'mesh_size': 2 for synthetic example (Demo)
-    use 'mesh_size': 12 for Dublin example
+    use 'mesh_size': 2 for synthetic example ('case': 'Demo')
+    use 'mesh_size': 12 for Dublin example ('case': 'Dublin')
     select 'tiles': [i, j, k] for the tiles i, j, k that are part of the run
-    The synthetic example has the two tiles 6 and 7.
+    The synthetic example has the two tiles 6 and 7. ('tiles': [6, 7])
     :return:
     """
     param = {
@@ -65,19 +66,19 @@ def get_parameters():
         'tiles': [6, 7],  # list of id's to be used in modeling
         # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
-        'num_iterations': 11,
+        'num_iterations': 10,
         'num_hidden_layers': 5,
         'num_nodes': 50,
-        'num_epochs': 50,
+        'num_epochs': 25,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
         'starter_learning_rate': 1e-3,
-        'decay_factor': 0.95,  # exponential decay
-        'train_to_test_split': 0.9,  # train_% + test_% = 1
-        'add_previous_labels_to_input': False,
+        'decay_factor': 0.88,  # exponential decay
+        'train_to_test_split': 0.9,  # train_%
+        'add_previous_labels_to_input': False,  # True is not a feature
         # ToDo: allow True in update of consistency constraint data
         # consistency constraints
-        'use_consistency_constraints': False,
+        'use_consistency_constraints': True,
         'cc_reg_coefficient': 1,  # lambda
         'kappa': 0.5,
         'epsilon': 0.1,
@@ -88,13 +89,31 @@ def get_parameters():
         'do_save_cc': True,
         'do_save_model': True,
         'do_save_estimates': True,
-        'iterations_to_save_estimates': [1, 2, 5, 10, 20, 30, 40, 50],  # 1-based
+        'iterations_to_save_estimates': [1, 5, 10, 20],  # 1-based
         'do_print_status': True,
         # for reproducibility
         'random_seed': None
         # None or (int) < 2147483648. If None, it's taken at random
     }
     return param
+
+
+def get_collections(port=27018):
+    """
+    get: collection of utility data
+         collection to draw data from
+         collection to write trained MLP output to
+    :param port: of the mongoDB database
+    :return: collections
+    """
+    client_internal = pymongo.MongoClient('localhost', port=port)
+    util = client_internal.db_air_quality.util
+    data = client_internal.db_air_quality.proc_estimates_PM10
+    predictions = client_internal.db_air_quality.ml_estimates_cc_PM10
+    collections = {'util': util,
+                   'data': data,
+                   'pred': predictions}
+    return collections
 
 
 def main():
@@ -105,6 +124,7 @@ def main():
     param['start_time'] = datetime.strftime(datetime.now(), '%y%m%d-%H%M%S')
 
     if param['do_print_status']:
+        print(f'{datetime.strftime(datetime.now(), "%y.%m.%d-%H:%M:%S")}')
         print(f'Using pre-processed data for {param["case"]} '
               # f'with tag {param["tag"]}.'
               )
@@ -116,11 +136,15 @@ def main():
               f'kappa: {param["kappa"]}\t '
               f'epsilon: {param["epsilon"]}\n')
         print('Loading data ...')
-    collections = umm.get_collections()
+    collections = get_collections()
+    if param['do_print_status']:
+        print(f'Data is taken from {collections["data"].name}.')
+        print(f'ML estimates are written to {collections["pred"].name}.')
     mesh = umm.get_mesh(collections['util'], **param)
     data = umm.get_data(collections['data'], mesh, **param)
     if param['do_print_status']:
-        print('Data loaded successfully.')
+        print('Data loaded successfully. '
+              f'{datetime.strftime(datetime.now(), "%y.%m.%d-%H:%M:%S")}')
         all_data = np.concatenate(list(data['labels'].values()))
         print(f'Labels min: {np.min(all_data)}')
         print(f'Labels median: {np.median(all_data)}')

@@ -1,7 +1,6 @@
 from collections import defaultdict
 from operator import add
 import numpy as np
-import pymongo
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 import time
@@ -51,29 +50,11 @@ Authors:
     Fearghal O'Donncha <feardonn@ie.ibm.com>
 
 Last updated:
-    2019 - 08 - 30
+    2019 - 09 - 13
 
 """
 
 model_path = "../output/models/"
-
-
-def get_collections(port=27018):
-    """
-    get: collection of utility data
-         collection to draw data from
-         collection to write trained MLP output to
-    :param port: of the mongoDB database
-    :return: collections
-    """
-    client_internal = pymongo.MongoClient('localhost', port=port)
-    util = client_internal.db_air_quality.util
-    data = client_internal.db_air_quality.proc_estimates
-    predictions = client_internal.db_air_quality.ml_estimates
-    collections = {'util': util,
-                   'data': data,
-                   'pred': predictions}
-    return collections
 
 
 def get_mesh(collection_util, **kwargs):
@@ -84,9 +65,10 @@ def get_mesh(collection_util, **kwargs):
     """
     utilities = uda.get_utilities_from_collection(collection_util,
                                                   case=kwargs['case'])
-    max_links = max([
-        len(domain['links']) for domain in utilities['domain_dict'].values()
-    ])
+    num_links = {
+        tile: len(domain['links'])
+        for tile, domain in utilities['domain_dict'].items()
+    }
     # important to select only those tiles and neighbors that are there!
     neighbors_select = {k: [n for n in v if n in kwargs['tiles']]
                         for k, v in utilities['domain_neighbors'].items()
@@ -97,7 +79,7 @@ def get_mesh(collection_util, **kwargs):
                             if k in kwargs['tiles']}
     bounding_box = np.transpose(list(utilities['bounding_box'].values()))
 
-    mesh = {'max_links': max_links,
+    mesh = {'num_links': num_links,
             'neighbors': neighbors_select,
             'intersections': intersections_select,
             'coord_mean': np.mean(bounding_box, 1),
@@ -170,25 +152,25 @@ def multilayer_perceptron(input_data, weights, biases, num_hidden_layers=4):
         return tf.add(tf.matmul(inp, w), b)
 
     hidden = dense(input_data, weights['in'], biases['in'])
-    hidden = tf.nn.relu(hidden)
+    hidden = tf.nn.leaky_relu(hidden, alpha=0.1)
 
     for i in range(num_hidden_layers):
         hkey = 'h' + str(i + 1)
         bkey = 'b' + str(i + 1)
         hidden = dense(hidden, weights[hkey], biases[bkey])
-        hidden = tf.nn.relu(hidden)
+        hidden = tf.nn.leaky_relu(hidden, alpha=0.1)
 
     hidden = dense(hidden, weights['out'], biases['out'])
-    # out_layer = tf.nn.relu(hidden)
-    out_layer = hidden
+    out_layer = tf.nn.leaky_relu(hidden, alpha=0.1)
     return out_layer
 
 
 def get_learning_rate(epoch, total_batch, **kwargs):
     """ modularized for more fine tuning options """
     decay_steps = 5000
-    lr = (kwargs['starter_learning_rate']
-          * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
+    lr = (
+        kwargs['starter_learning_rate']
+        * kwargs['decay_factor'] ** (epoch * total_batch / decay_steps)
     )
     return lr
 
@@ -208,7 +190,8 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
     mlp_times = []
     for tile_num, tile in enumerate(kwargs['tiles']):
         if kwargs['do_print_status']:
-            print(f'Training for tile {tile} ({tile_num + 1}/{mesh["size"]}) '
+            print(f'Training for tile {tile} '
+                  f'({tile_num + 1}/{len(kwargs["tiles"])}) '
                   f'at iteration {iteration}/{kwargs["num_iterations"]}')
         training_start_time = time.perf_counter()
 
@@ -254,9 +237,9 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
         cc_input_train = {}
         if kwargs['use_consistency_constraints']:
             for neighbor in mesh['neighbors'][tile]:
-                if iteration == 1:
+                if iteration > 1:
                     cc_input_train[neighbor] \
-                        = data['cc_input'][tile][neighbor]
+                        = np.array(data['cc_input'][tile][neighbor])
                     if do_normalize:
                         cc_input_train[neighbor] = scaler.transform(
                             cc_input_train[neighbor]
@@ -472,7 +455,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 if epoch % 1 == 0:
                     if kwargs['do_print_status']:
                         print(f'Epoch: {epoch}/{kwargs["num_epochs"]} cost: '
-                              f'{avg_cost:.3f} ({time.perf_counter() - t:.2f}'
+                              f'{avg_cost:.6f} ({time.perf_counter() - t:.2f}'
                               f's)')
                     t = time.perf_counter()
 
@@ -495,10 +478,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
             test_smape = sess.run(smape, feed_dict={tf_data: input_test,
                                                     tf_labels: labels_test})
             if kwargs['do_print_status']:
-                print(f'MSE: {test_acc:.3f}')
-                print(f'MAE: {test_mae:.3f}')
-                print(f'MAPE: {test_mape:.3f}')
-                print(f'sMAPE: {test_smape:.3f}')
+                print(f'MSE: {test_acc:.6f}')
+                print(f'MAE: {test_mae:.6f}')
+                print(f'MAPE: {test_mape:.6f}')
+                print(f'sMAPE: {test_smape:.6f}')
 
             ##################
             # Save estimates # ________________________________________________
@@ -529,9 +512,10 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                 # 1 == len(timestamp)
                 # 4 == len(weather_data)
                 # 5 == len(traffic_source)
-                emitter_len = 1 + 4 + 5 * mesh['max_links']
+                emitter_len = 1 + 4 + 5 * mesh['num_links'][tile]
 
                 for neighbor in mesh['neighbors'][tile]:
+                    emitter_len_ngbr = 1 + 4 + 5 * mesh['num_links'][neighbor]
                     boundary = tuple(sorted([tile, neighbor]))
                     # choose a number of inputs for which to use the
                     # emission data for boundary receptors
@@ -549,7 +533,7 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                             num_samples=kwargs['batch_size'], **kwargs
                         )
                     # Get boundary predictions:
-                    # use trained model to predict labels at boundary
+                    # use trained model to predict labels at boundary,
                     # transform coordinate choices to normalised input
                     # data for computing labels
                     if do_normalize:
@@ -575,10 +559,13 @@ def run_recursion_cycle(data, mesh, iteration, collection_mlp_estim,
                         # transform back the data
                         pre_consistency_data = scaler.inverse_transform(
                             pre_consistency_data)
-                    consistency_data = pre_consistency_data
                     # replace wind and traffic data with data from
                     # neighboring tile
-                    consistency_data[:emitter_len] = c_input_ngbr[:emitter_len]
+                    emitters = np.array(c_input_ngbr)[:, :emitter_len_ngbr]
+                    receptors = np.array(pre_consistency_data)[:, emitter_len:]
+                    consistency_data = np.transpose(np.concatenate(
+                        (np.transpose(emitters), np.transpose(receptors))
+                    ))
 
                     c_input_new[neighbor][tile] = (
                         np.concatenate((c_input_new[neighbor][tile],

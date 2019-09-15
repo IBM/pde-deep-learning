@@ -228,6 +228,8 @@ def plot_heatmap(date, **kwargs):
         )
         plt.close()
 
+    print(f'{date.strftime("%Y-%m-%d_%H")} done.')
+
     return None
 
 

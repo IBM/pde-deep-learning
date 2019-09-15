@@ -109,9 +109,22 @@ def get_parameters():
         #  if input should have the same size for all tiles:
         'pad links with zeroes': False,
         'do normalise': True,
-        'pollutants': ['NO2']  # , 'PM10', 'PM25'
+        'pollutants': ['NO2']  # 'NO2', 'PM10', 'PM25'
     }
     return param
+
+
+def get_collections():
+    client_internal = pymongo.MongoClient('localhost', 27018)
+    coll = {
+        'weather': client_internal.db_air_quality.weather,
+        'traffic': client_internal.db_air_quality.traffic_volumes,
+        'caline': client_internal.db_air_quality.caline_estimates,
+        'util': client_internal.db_air_quality.util,
+        # collection to store the pre-processed data
+        'pre': client_internal.db_air_quality.proc_estimates
+    }
+    return coll
 
 
 def pre_process(collection_pre, mesh,
@@ -141,8 +154,9 @@ def pre_process(collection_pre, mesh,
             return val
 
     def normalize_time(_timestamp):
-        """ :param _timestamp: (float) timestamp """
-        return normalize(_timestamp, time_mean, time_std)
+        """ Normalize [0, 1] based.
+        :param _timestamp: (float) timestamp """
+        return normalize(_timestamp, mean=time_min, std=time_max - time_min)
 
     def normalize_weather(_weather_list):
         """ :param _weather_list: [wind_dir, wind_spd, wind_dir_std, temp] """
@@ -158,12 +172,17 @@ def pre_process(collection_pre, mesh,
         return list(normalize(np.asarray(_coords), coord_mean, coord_std))
 
     def normalize_concentrations(_concentration, _type):
-        return normalize(_concentration, poll_mean[_type], poll_std[_type])
+        """
+        :param _concentration: (float)
+        :param _type: (str) pollution type
+        """
+        return normalize(_concentration, mean=poll_min[_type],
+                         std=poll_max[_type] - poll_min[_type])
 
     time_interval = [kwargs['date start'].timestamp(),
                      kwargs['date end'].timestamp()]
-    time_mean = np.mean(time_interval)
-    time_std = np.std(time_interval)
+    time_max = np.max(time_interval)
+    time_min = np.min(time_interval)
 
     weather_values = np.transpose(list(weather_data.values()))
     weather_mean = np.mean(weather_values, 1)
@@ -181,14 +200,14 @@ def pre_process(collection_pre, mesh,
     coord_mean = np.mean(bounding_box, 1)
     coord_std = np.std(bounding_box, 1)
 
-    poll_mean = {
-        _type.get_name(): np.mean([p[_type.get_name()]
-                                   for rec in caline_estimates.values()
-                                   for p in rec.values()])
+    poll_max = {
+        _type.get_name(): np.max([p[_type.get_name()]
+                                  for rec in caline_estimates.values()
+                                  for p in rec.values()])
         for _type in u_pol.Pollutant
     }
-    poll_std = {
-        _type.get_name(): np.std([p[_type.get_name()]
+    poll_min = {
+        _type.get_name(): np.min([p[_type.get_name()]
                                   for rec in caline_estimates.values()
                                   for p in rec.values()])
         for _type in u_pol.Pollutant
@@ -287,7 +306,8 @@ def pre_process(collection_pre, mesh,
 
                 collection_of_pre_processed_entries.append(data)
 
-                if len(collection_of_pre_processed_entries) < max_collection_size:
+                if len(collection_of_pre_processed_entries) \
+                        < max_collection_size:
                     continue
                 collection_pre.insert_many(collection_of_pre_processed_entries)
                 collection_of_pre_processed_entries = []
@@ -309,8 +329,8 @@ def pre_process(collection_pre, mesh,
         'sub domain selection': kwargs['sub domain selection'],
         'pollutants': kwargs['pollutants'],
         'time': {
-            'mean': time_mean,
-            'std': time_std
+            'max': time_max,
+            'min': time_min
         },
         'weather': {
             'mean': list(weather_mean),
@@ -325,8 +345,8 @@ def pre_process(collection_pre, mesh,
             'std': volumes_std
         },
         'poll': {
-            'mean': poll_mean,
-            'std': poll_std
+            'max': poll_max,
+            'min': poll_min
         }
     }
 
@@ -369,14 +389,12 @@ def main():
           f'is considered.')
     print('')
     print('Connecting to internal Mongo database ...')
-    client_internal = pymongo.MongoClient('localhost', 27018)
-    collection_weather = client_internal.db_air_quality.weather
-    collection_traffic_volumes = client_internal.db_air_quality.traffic_volumes
-    collection_caline_estimates \
-        = client_internal.db_air_quality.caline_estimates
-    collection_util = client_internal.db_air_quality.util
-    # collection to store the pre-processed data
-    collection_pre = client_internal.db_air_quality.proc_estimates
+    coll = get_collections()
+    collection_weather = coll['weather']
+    collection_traffic_volumes = coll['traffic']
+    collection_caline_estimates = coll['caline']
+    collection_util = coll['util']
+    collection_pre = coll['pre']
 
     print('Getting weather data ...')
     weather_data = uda.get_weather_data(

@@ -13,6 +13,7 @@ import numpy as np
 import pymongo
 
 import util.util_db_access as uda
+import util.util_measurements as um
 
 
 """ 
@@ -54,7 +55,7 @@ Last updated:
 """
 
 
-def get_parameters():
+def get_parameters(receptor_coord=(53.34421064496467, -6.26476486860426)):
     """
     :return:
     """
@@ -62,9 +63,9 @@ def get_parameters():
     param = {
         'date_start': datetime.datetime(2017, 10, 22, 0),
         'period': datetime.timedelta(days=3),
-        'receptor_coord': [53.34421064496467, -6.26476486860426],
+        'receptor_coord': list(receptor_coord),
         'station_name': 'Winetavern St Civic Offices',
-        'iteration': 1,
+        'iteration': 10,
         # is appended to file name:
         'pollutants': ['NO2']
     }
@@ -165,8 +166,11 @@ def plot_timeseries(
         # plot timeseries
 
         fig = plt.figure(figsize=(10, 10))
-        st = plt.suptitle('Pollution Data in Dublin City Center '
-                          '(near ' + str(receptor_coord) + ')')
+        st = plt.suptitle('Pollution Data in Dublin City Center\n'
+                          f'at receptor location {str(receptor_coord)},'
+                          '\n'
+                          'compared to measurement station '
+                          f'at {um.get_stations()[station_name]}')
 
         sub1 = fig.add_subplot(2, 1, 1)
         station, = plt.plot(station_x, station_y, 'b.',
@@ -176,7 +180,8 @@ def plot_timeseries(
             caline, = plt.plot(x, y, 'r+', label='Caline estimates')
             handles.append(caline)
         if poll in ml_time_series:
-            mlp, = plt.plot(ml_x, ml_y, 'gx', label='MLP estimates')
+            label = f'ML estimates ({kwargs["iteration"]}. iter)'
+            mlp, = plt.plot(ml_x, ml_y, 'gx', label=label)
             handles.append(mlp)
 
         loc_x = list(np.linspace(x.min(), x.max(), 4))
@@ -214,12 +219,15 @@ def plot_timeseries(
             caline, = plt.plot(x, y, 'r+', label='Caline estimates')
             handles.append(caline)
         if poll in ml_time_series:
-            mlp, = plt.plot(ml_x, ml_y, 'gx', label='MLP estimates')
+            label = f'ML estimates ({kwargs["iteration"]}. iter)'
+            mlp, = plt.plot(ml_x, ml_y, 'gx', label=label)
             handles.append(mlp)
 
         loc_x = list(np.linspace(x.min(), x.max(), 4))
         label_x = list(range(0, 4 * 24, 24))
-        label_y = list(range(2 * int((min_y - 1) / 2), max_y + 1, 2))
+        label_y = list(range(min(0, 2 * int((min_y - 1) / 2)),
+                             max_y + 1,
+                             2))
         plt.xticks(loc_x, label_x)
         plt.yticks(label_y, label_y)
         sub2.set_xticks(x, minor=True)
@@ -231,7 +239,7 @@ def plot_timeseries(
         plt.legend(handles=handles)
 
         # adjust spacing:
-        st.set_y(0.95)
+        st.set_y(0.97)
         fig.subplots_adjust(hspace=0.3)
 
         plot_name = (
@@ -241,6 +249,8 @@ def plot_timeseries(
         plt.savefig(plot_name + '.pdf')
         # plt.savefig(plot_name + '.png')
         plt.close()
+
+    print('Done.')
 
     return None
 
@@ -258,4 +268,10 @@ if __name__ == '__main__':
     collection_estim = client.db_air_quality.ml_estimates
     collection_util = client.db_air_quality.util
 
-    plot_timeseries(**get_parameters())
+    entry = collection_util.find({'contour_distance': 5})[0]
+    entry = uda.db_util_entry_to_dict(entry)
+    receptors_dict = entry['receptors_dict']
+
+    for tile, recptors_list in receptors_dict.items():
+        for receptor_coord in recptors_list:
+            plot_timeseries(**get_parameters(receptor_coord))
