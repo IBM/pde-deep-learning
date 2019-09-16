@@ -45,16 +45,26 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 09 - 13
+    2019 - 09 - 15
 
 """
 
 
 def plot_cost():
-    files = [
-        '190911-125255_Demo.txt',
-        '190911-192253_Demo.txt'
-    ]
+    case = 'Demo'
+    if case == 'Demo':
+        files = [
+            '190911-125255_Demo.txt',
+            '190911-192253_Demo.txt',
+            '190915-171120_Demo.txt',
+            '190915-222342_Demo.txt'
+        ]
+    elif case == 'Dublin':
+        files = [
+            '190913-154541_Dublin.txt'
+        ]
+    else:
+        files = []
 
     img_path = '../output/img/'
     file_path = '../output/benchmarks/'
@@ -98,9 +108,15 @@ def plot_cost():
     ax = fig.add_subplot(111)
     ax.set_yscale("log", nonposy='clip')
     handle = {}
-    for (g, ek, n), triples in cost_plot.items():
-        x, yl, ye = np.transpose([[d[0], d[1], d[3]] for d in triples])
-        handle[(g, ek, n)] = plt.errorbar(x, yl, yerr=ye, label=label + str(g) + ', ' + str(ek))
+    x = {}
+    for i, ((g, ek, n), triples) in enumerate(cost_plot.items()):
+        x[i], yl, ye = np.transpose(
+            [[d[0] + i * 0.1, d[1], d[3]] for d in triples]
+        )
+        handle[(g, ek, n)] = plt.errorbar(
+            x[i], yl, yerr=ye, label=label + str(g) + ', ' + str(ek)
+        )
+    ax.set_xticks(x[0])
     plt.xlabel('iterations')
     plt.ylabel('mean absolute error')
     plt.ylim(0.0001, 1)
@@ -108,8 +124,9 @@ def plot_cost():
     plt.legend(handles=list(handle.values()))
     ax.set_title('mean absolute error')
     # fig.subplots_adjust(top=0.85, hspace=0.3)
-    plt.savefig(img_path + 'benchmarks/mae_' + str(files) + '.pdf')
-    plt.savefig(img_path + 'benchmarks/mae_' + str(files) + '.png')
+    fig.subplots_adjust(left=0.14)
+    plt.savefig(img_path + f'benchmarks/mae_{case}.pdf')
+    # plt.savefig(img_path + f'benchmarks/mae_{case}.png')
     plt.close()
 
 

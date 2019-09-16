@@ -45,16 +45,26 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 09 - 13
+    2019 - 09 - 15
 
 """
 
 
 def plot_CC():
-    files = [
-        '190911-125255_Demo.txt',
-        '190911-192253_Demo.txt'
-    ]
+    case = 'Demo'
+    if case == 'Demo':
+        files = [
+            '190911-125255_Demo.txt',
+            '190911-192253_Demo.txt',
+            '190915-171120_Demo.txt',
+            '190915-222342_Demo.txt'
+        ]
+    elif case == 'Dublin':
+        files = [
+            '190913-154541_Dublin.txt'
+        ]
+    else:
+        files = []
 
     img_path = '../output/img/'
     file_path = '../output/cc/'
@@ -90,7 +100,9 @@ def plot_CC():
             Y_diff = float(row[Y_diff_ix])
             chi_low_mean = float(row[chi_low_mean_ix])
             chi_high_mean = float(row[chi_high_mean_ix])
-            chi[(g, ek, seed)][iteration].append((chi_diff, Y_diff, chi_low_mean, chi_high_mean))
+            chi[(g, ek, seed)][iteration].append(
+                (chi_diff, Y_diff, chi_low_mean, chi_high_mean)
+            )
 
     chi_plot = {key: [[i] + list(np.average(np.transpose(tup), axis=1))
                           + list(np.std(np.transpose(tup), axis=1))
@@ -98,52 +110,77 @@ def plot_CC():
                 for key, iters in chi.items()}
 
     fig = plt.figure(figsize=(5, 5))
+    ax = fig.add_subplot(111)
     handle = {}
-    for (g, ek, n), triples in chi_plot.items():
-        x, yl, ye = np.transpose([[d[0], d[1], d[5]] for d in triples])
-        handle[(g, ek, n)] = plt.errorbar(x, yl, yerr=ye, label=label + str(g) + ', ' + str(ek))
+    x = {}
+    for i, ((g, ek, n), triples) in enumerate(chi_plot.items()):
+        x[i], yl, ye = np.transpose(
+            [[d[0] + i * 0.1, d[1], d[5]] for d in triples]
+        )
+        handle[(g, ek, n)] = plt.errorbar(
+            x[i], yl, yerr=ye, label=label + str(g) + ', ' + str(ek)
+        )
+    ax.set_xticks(x[0])
     plt.xlabel('iterations')
-    plt.ylabel('$|\chi - \chi|$')
+    plt.ylabel('$|\chi_{high} - \chi_{low}|$')
     plt.ylim(0, 1)
     plt.grid(True)
     plt.legend(handles=list(handle.values()))
     plt.title('mean difference between upper and lower $\chi$ values')
-    plt.savefig(img_path + 'benchmarks/chi_diff_' + version + '.pdf')
-    plt.savefig(img_path + 'benchmarks/chi_diff_' + version + '.png')
+    plt.savefig(img_path + f'benchmarks/chi_diff_{version}_{case}.pdf')
+    # plt.savefig(img_path + f'benchmarks/chi_diff_{version}_{case}.pdf')
     plt.close()
 
     fig = plt.figure(figsize=(5, 5))
+    ax = fig.add_subplot(111)
     handle = {}
-    for (g, ek, n), triples in chi_plot.items():
-        x, yl, ye = np.transpose([[d[0], d[3], d[7]] for d in triples])
-        p = plt.errorbar(x, yl, yerr=ye)
-        x, yl, ye = np.transpose([[d[0], d[4], d[8]] for d in triples])
-        handle[(g, ek, n)] = plt.errorbar(x, yl, yerr=ye, label=label + str(g) + ', ' + str(ek), color=p[0].get_color())
+    x = {}
+    for i, ((g, ek, n), triples) in enumerate(chi_plot.items()):
+        x[i], yl, ye = np.transpose(
+            [[d[0] + i * 0.1, d[3], d[7]] for d in triples]
+        )
+        p = plt.errorbar(x[i], yl, yerr=ye)
+        x[i], yl, ye = np.transpose(
+            [[d[0] + i * 0.1, d[2], d[6]] for d in triples]
+        )
+        handle[(g, ek, n)] = plt.errorbar(
+            x[i], yl, yerr=ye, label=label + str(g) + ', ' + str(ek),
+            color=p[0].get_color()
+        )
+    ax.set_xticks(x[0])
     plt.xlabel('iterations')
     plt.ylabel('mean $\chi$')
-    plt.ylim(-1, 2)
+    plt.ylim(-0.1, 1.1)
     plt.grid(True)
     plt.legend(handles=list(handle.values()))
     plt.title('mean upper and lower $\chi$ values')
-    plt.savefig(img_path + 'benchmarks/chi_mean_interval_' + version + '.pdf')
-    plt.savefig(img_path + 'benchmarks/chi_mean_interval_' + version + '.png')
+    fig.subplots_adjust(left=0.14)
+    plt.savefig(img_path + f'benchmarks/chi_mean_interval_{version}_{case}.pdf')
+    # plt.savefig(img_path + f'benchmarks/chi_mean_interval_{version}_{case}.pdf')
     plt.close()
 
     fig = plt.figure(figsize=(5, 5))
     ax = fig.add_subplot(111)
     ax.set_yscale("log", nonposy='clip')
     handle = {}
-    for (g, ek, n), triples in chi_plot.items():
-        x, yh, ye = np.transpose([[d[0], d[2], d[6]] for d in triples])
-        handle[(g, ek, n)] = plt.errorbar(x, yh, yerr=ye, label=label + str(g) + ', ' + str(ek))
+    x = {}
+    for i, ((g, ek, n), triples) in enumerate(chi_plot.items()):
+        x[i], yh, ye = np.transpose(
+            [[d[0] + i * 0.1, d[2], d[6]] for d in triples]
+        )
+        handle[(g, ek, n)] = plt.errorbar(
+            x[i], yh, yerr=ye, label=label + str(g) + ', ' + str(ek)
+        )
+    ax.set_xticks(x[0])
     ax.set_xlabel('iterations')
-    ax.set_ylabel('|f$_{upper}$ - f$_{lower}$|')
+    ax.set_ylabel('|f$_{high}$ - f$_{low}$|')
     plt.ylim(0.01, 2)
     plt.grid(True)
     plt.legend(handles=list(handle.values()))
     ax.set_title('mean difference between upper and lower predictions')
-    plt.savefig(img_path + 'benchmarks/Y_diff_' + version + '.pdf')
-    plt.savefig(img_path + 'benchmarks/Y_diff_' + version + '.png')
+    fig.subplots_adjust(left=0.15)
+    plt.savefig(img_path + f'benchmarks/Y_diff_{version}_{case}.pdf')
+    # plt.savefig(img_path + f'benchmarks/Y_diff_{version}_{case}.pdf')
     plt.close()
 
     return None
