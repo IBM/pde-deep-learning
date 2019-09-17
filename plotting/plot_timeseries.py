@@ -59,7 +59,7 @@ def get_parameters():
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         'date_start': datetime.datetime(2017, 8, 7, 0),
-        'period': datetime.timedelta(days=21),
+        'period': datetime.timedelta(days=3),
         'receptor_coord': None,  # [53.34421064496467, -6.26476486860426],
         'station_name': 'Winetavern St Civic Offices',
         # Plot receptors that were placed at (multiples of) this distance.
@@ -209,7 +209,10 @@ def plot_timeseries(
 
         seconds_in_day = 60*60*24
         seconds_in_week = seconds_in_day * 7
-        steps_x = seconds_in_week
+        if kwargs['period'] < datetime.timedelta(days=10):
+            steps_x = seconds_in_day
+        else:
+            steps_x = seconds_in_week
 
         loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, steps_x))
         label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
