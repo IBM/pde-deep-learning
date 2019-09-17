@@ -173,19 +173,28 @@ From the collection, different pre-processing runs are identified via the ‘cas
 2) the full Dublin example
 3) some subset of the Dublin example, restricted to a number of tiles
 
-Make sure that there is no other data in the pre_proc collection!
+It is advisable though to create a new collection for each setting.
 
-Now we can run the deep learning model.
+We can now run the deep learning model.
 
     python run/run_ml_model.py
 
-The last remaining step is to evaluate the data.
+Evaluation of the run can be done with the help of the many plotting scripts:
 
-    python plotting/run_evaluation.py
-        
-If of interest, many things can be plotted:
+    python plotting/plot_benchmarks.py
+    python plotting/plot_cc.py
+    
+They plot graphs of the accuracy metrics and of the consistency constraints.
+    
+    python plotting/plot_contour_maps.py
+    python plotting/plot_timeseries.py
+
+They visualize the spatial and temporal distribution of the data, comparing the Caline results with the ones learned by the ML model.
+
+Visualizing the traffic data, weather data, and measurement data can be done using the scripts
 
     python plotting/plot_maps.py
+    python plotting/plot_stations.py
     python plotting/plot_traffic_volumes.py
     python plotting/plot_weather_data.py
 
