@@ -55,14 +55,17 @@ Last updated:
 """
 
 
-def get_parameters(receptor_coord=(53.34421064496467, -6.26476486860426)):
+def get_parameters():
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         'date_start': datetime.datetime(2017, 8, 7, 0),
-        'period': datetime.timedelta(days=3),
-        'receptor_coord': list(receptor_coord),
+        'period': datetime.timedelta(days=21),
+        'receptor_coord': None,  # [53.34421064496467, -6.26476486860426],
         'station_name': 'Winetavern St Civic Offices',
-        'iteration': 10,
+        # Plot receptors that were placed at (multiples of) this distance.
+        # For the Demo, the smallest distance is 5, for Dublin it is 6.
+        'contour_distance': 6,
+        'iteration': 4,
         # is appended to file name:
         'pollutants': ['NO2']
     }
@@ -71,7 +74,7 @@ def get_parameters(receptor_coord=(53.34421064496467, -6.26476486860426)):
 
 def get_collections(port=27018):
     client = pymongo.MongoClient('localhost', port=port)
-    collections = {'ml': client.db_air_quality.ml_estimates,
+    collections = {'ml': client.db_air_quality.ml_estimates_dublin,
                    'util': client.db_air_quality.util,
                    'station':client.db_air_quality.pollution_measurements,
                    'caline': client.db_air_quality.caline_estimates}
@@ -85,7 +88,6 @@ def plot_timeseries(
 
     timestamp_start = date_start.timestamp()
     date_end = date_start + period
-    offset = 60*60*6  # 6 hours
     site = tuple(receptor_coord)
 
     print('Getting station measurement data ...')
@@ -99,7 +101,7 @@ def plot_timeseries(
     polls = []
     for timestamp, pollution_values in station_measurements.items():
         for pollutant, value in pollution_values.items():
-            t = timestamp - timestamp_start + offset
+            t = timestamp - timestamp_start
             if pollutant not in polls:
                 polls.append(pollutant)
             station_time_series[pollutant][t] = value
@@ -113,7 +115,7 @@ def plot_timeseries(
     background_time_series = defaultdict(dict)
     for timestamp, pollution_values in background_pollution.items():
         for pollutant, value in pollution_values.items():
-            t = timestamp - timestamp_start + offset
+            t = timestamp - timestamp_start
             background_time_series[pollutant][t] = value
 
     print('Getting Caline estimates ...')
@@ -207,8 +209,9 @@ def plot_timeseries(
 
         seconds_in_day = 60*60*24
         seconds_in_week = seconds_in_day * 7
+        steps_x = seconds_in_week
 
-        loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, seconds_in_day))
+        loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, steps_x))
         label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
                             dtype='datetime64[D]', step=1)
         label_y_min = 10 * int((min_y - 1) / 10)
@@ -258,7 +261,7 @@ def plot_timeseries(
             mlp, = plt.plot(ml_x, ml_y, 'gx', label=label)
             handles.append(mlp)
 
-        loc_x = list(np.arange(x.min(), x.max() + 2 * 60*60, seconds_in_day))
+        loc_x = list(np.arange(x.min(), x.max() + 2 * 60*60, steps_x))
         label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
                             dtype='datetime64[D]', step=1)
         label_y_min = 2 * int((min_y - 1) / 2)
@@ -307,10 +310,17 @@ if __name__ == '__main__':
     collection_estim = collections['ml']
     collection_util = collections['util']
 
-    entry = collection_util.find({'contour_distance': 5})[0]
+    param = get_parameters()
+    contour_distance = param['contour_distance']
+
+    entry = collection_util.find({'contour_distance': contour_distance})[0]
     entry = uda.db_util_entry_to_dict(entry)
     receptors_dict = entry['receptors_dict']
 
-    for tile, recptors_list in receptors_dict.items():
-        for receptor_coord in recptors_list:
-            plot_timeseries(**get_parameters(receptor_coord))
+    if param['receptor_coord'] is None:
+        for tile, recptors_list in receptors_dict.items():
+            for receptor_coord in recptors_list:
+                param['receptor_coord'] = receptor_coord
+                plot_timeseries(**param)
+    else:
+        plot_timeseries(**param)
