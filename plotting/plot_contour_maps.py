@@ -52,25 +52,30 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 30
+    2019 - 09 - 16
 
 """
 
 
 def get_parameters():
-    """
-    :return:
-    """
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         'case': 'Demo',
-        'date_start': datetime.datetime(2017, 10, 22, 0),
-        'date_end': datetime.datetime(2017, 10, 23, 0),
-        'iteration': 1,
+        'date_start': datetime.datetime(2017, 9, 15, 0),
+        'date_end': datetime.datetime(2017, 9, 16, 0),
+        'iteration': 10,
         'pollutants': ['NO2'],
-        'resolution': 150,
+        'resolution': 500,
     }
     return param
+
+
+def get_collections(port=27018):
+    client = pymongo.MongoClient('localhost', port=port)
+    collections = {'ml': client.db_air_quality.ml_estimates,
+                   'util': client.db_air_quality.util,
+                   'caline': client.db_air_quality.caline_estimates}
+    return collections
 
 
 class MidpointNormalize(Normalize):
@@ -168,6 +173,9 @@ def plot_heatmap(date, **kwargs):
                             (d_xi[None, :], d_yi[:, None]),
                             method='nearest')
 
+        min_z = np.min([zi, ml_zi])
+        max_z = np.max([zi, ml_zi])
+
         # Layout of the plot:
         #
         # Caline estimates. differences
@@ -177,14 +185,17 @@ def plot_heatmap(date, **kwargs):
         st = plt.suptitle(
             'Pollution estimates for ' + kwargs['case'] + ' for ' + str(date)
             + '\n'
-            + poll + ' concentration levels in [micrograms/m3]',
+            + poll + ' concentration levels in [$\mu g/m^3$]',
             fontsize='x-large'
         )
 
         sub1 = fig.add_subplot(2, 2, 1)
         sub1.set_title('Caline estimates')
         plt.contour(xi, yi, zi, 10, linewidths=0.5, colors='k')
-        plt.contourf(xi, yi, zi, 15, cmap='YlOrRd')
+        plt.contourf(xi, yi, zi, 15,
+                     cmap='YlOrRd',
+                     # vmin=min_z,
+                     vmax=max_z)
         plt.colorbar()
         plt.xlabel('Longitude')
         plt.ylabel('Latitude')
@@ -203,14 +214,19 @@ def plot_heatmap(date, **kwargs):
         plt.xlabel('Longitude')
         plt.ylabel('Latitude')
 
+        print(f'MAE: {np.mean(np.abs(d_zi))} +- {np.std(np.abs(d_zi))}')
+
         # sub3 = fig.add_subplot(2, 2, 3)
         # plot_receptor_map()
 
         sub4 = fig.add_subplot(2, 2, 4)
         sub4.set_title('ML estimates after ' + str(kwargs['iteration'])
-                       + ' iteration(s)')
+                       + ' iterations')
         plt.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.5, colors='k')
-        plt.contourf(ml_xi, ml_yi, ml_zi, 15, cmap='YlOrRd')
+        plt.contourf(ml_xi, ml_yi, ml_zi, 15,
+                     cmap='YlOrRd',
+                     # vmin=min_z,
+                     vmax=max_z)
         plt.colorbar()
         plt.xlabel('Longitude')
         plt.ylabel('Latitude')
@@ -220,7 +236,7 @@ def plot_heatmap(date, **kwargs):
         fig.subplots_adjust(top=0.85, hspace=0.3)
 
         plt.savefig(
-            img_path + 'contour_maps/' + poll + '/'
+            img_path + 'contour_maps/' + poll + '/' + kwargs['case'] + '/'
             + kwargs['case']
             + '_' + str(kwargs['iteration'])
             + '_' + date.strftime('%Y-%m-%d_%H')
@@ -235,18 +251,17 @@ def plot_heatmap(date, **kwargs):
 
 if __name__ == '__main__':
 
-    benchmark_path = '../output/benchmarks/'
     img_path = '../output/img/'
 
     """ connect to internal Mongo database """
-    client = pymongo.MongoClient('localhost', 27018)
-    # 2017-07-01 01:00:00 to 2018-05-02 14:00:00
-    collection_measurement = client.db_air_quality.pollution_measurements
-    collection_caline_estimates = client.db_air_quality.caline_estimates
-    collection_estim = client.db_air_quality.ml_estimates
-    collection_util = client.db_air_quality.util
+    collections = get_collections()
+    collection_caline_estimates = collections['caline']
+    collection_estim = collections['ml']
+    collection_util = collections['util']
 
     parameters = get_parameters()
+
+    print(f'Plotting contour plots for {parameters["case"]}.')
 
     date_start = parameters['date_start']
     date_end = parameters['date_end']
