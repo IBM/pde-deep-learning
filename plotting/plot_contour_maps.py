@@ -52,7 +52,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 09 - 16
+    2019 - 09 - 18
 
 """
 
@@ -66,7 +66,7 @@ def get_parameters():
         'iteration': 4,
         'pollutants': ['NO2'],
         'resolution': 500,
-        'show diff': False,
+        'show diff': True,
         'with background': True
     }
     return param
@@ -194,8 +194,10 @@ def plot_heatmap(date, **kwargs):
                             (d_xi[None, :], d_yi[:, None]),
                             method='nearest')
 
-        min_z = np.min([zi, ml_zi])
-        max_z = np.max([zi, ml_zi])
+        min_z = np.floor(np.min([zi, ml_zi]))
+        max_z = np.ceil(np.max([zi, ml_zi]))
+
+        levels = np.linspace(min_z, max_z, 15, endpoint=True)
 
         # Layout of the plot:
         #
@@ -219,31 +221,33 @@ def plot_heatmap(date, **kwargs):
         else:
             sub1 = fig.add_subplot(1, 2, 1)
         sub1.set_title('Caline estimates')
-        plt.contour(xi, yi, zi, 10, linewidths=0.01, colors='k')
-        plt.contourf(xi, yi, zi, 15,
-                     cmap='YlOrRd',
-                     vmin=min_z,
-                     vmax=max_z)
-        plt.colorbar()
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
+        sub1.contour(xi, yi, zi, 10, linewidths=0.01, colors='k')
+        c1 = sub1.contourf(xi, yi, zi, levels=levels,
+                           cmap='YlOrRd',
+                           vmin=min_z,
+                           vmax=max_z)
+        sub1.set_xlabel('Longitude')
+        sub1.set_ylabel('Latitude')
+        c1.set_clim(vmin=min_z, vmax=max_z)
+        fig.colorbar(c1, ax=sub1)
 
         if kwargs['show diff']:
             sub2 = fig.add_subplot(2, 2, 2)
             sub2.set_title('Differences between Caline and ML estimates')
-            plt.contour(d_xi, d_yi, d_zi, 10, linewidths=0.01, colors='k')
-            plt.contourf(d_xi, d_yi, d_zi, 15,
-                         cmap='seismic',
-                         norm=MidpointNormalize(
-                             vmin=np.min(d_zi),
-                             vmax=np.max(d_zi),
-                             midpoint=0
-                         ))
-            plt.colorbar()
-            plt.xlabel('Longitude')
-            plt.ylabel('Latitude')
+            sub2.contour(d_xi, d_yi, d_zi, 10, linewidths=0.01, colors='k')
+            c2 = sub2.contourf(d_xi, d_yi, d_zi, 15,
+                               cmap='seismic',
+                               norm=MidpointNormalize(
+                                   vmin=np.min(d_zi),
+                                   vmax=np.max(d_zi),
+                                   midpoint=0
+                               ))
+            sub2.set_xlabel('Longitude')
+            sub2.set_ylabel('Latitude')
+            fig.colorbar(c2, ax=sub2)
 
-            print(f'MAE: {np.mean(np.abs(d_zi))} +- {np.std(np.abs(d_zi))}')
+        print(f'MAE of difference: '
+              f'{np.mean(np.abs(d_zi))} +- {np.std(np.abs(d_zi))}')
 
         # sub3 = fig.add_subplot(2, 2, 3)
         # plot_receptor_map()
@@ -254,14 +258,15 @@ def plot_heatmap(date, **kwargs):
             sub4 = fig.add_subplot(1, 2, 2)
         sub4.set_title('ML estimates after ' + str(kwargs['iteration'])
                        + ' iterations')
-        plt.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.01, colors='k')
-        plt.contourf(ml_xi, ml_yi, ml_zi, 15,
-                     cmap='YlOrRd',
-                     vmin=min_z,
-                     vmax=max_z)
-        plt.colorbar()
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
+        sub4.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.01, colors='k')
+        c4 = sub4.contourf(ml_xi, ml_yi, ml_zi, levels=levels,
+                           cmap='YlOrRd',
+                           vmin=min_z,
+                           vmax=max_z)
+        sub4.set_xlabel('Longitude')
+        sub4.set_ylabel('Latitude')
+        c4.set_clim(vmin=min_z, vmax=max_z)
+        fig.colorbar(c4, ax=sub4)
 
         # shift subplots down:
         if kwargs['show diff']:
@@ -269,7 +274,7 @@ def plot_heatmap(date, **kwargs):
             fig.subplots_adjust(top=0.85, hspace=0.3)
         else:
             st.set_y(0.95)
-            fig.subplots_adjust(top=0.8)
+            fig.subplots_adjust(top=0.8, left=0.1, right=0.95)
 
         plt.savefig(
             img_path + 'contour_maps/' + poll + '/' + kwargs['case'] + '/'
