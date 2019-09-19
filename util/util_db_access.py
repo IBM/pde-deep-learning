@@ -141,8 +141,8 @@ def get_background_pollution(
     pipeline = [
         {'$match': {
             '$and': [
-                {'timestamp': {'$gte': date_start.timestamp()}},
-                {'timestamp': {'$lte': date_end.timestamp()}},
+                {'date': {'$gte': date_start.strftime('%Y-%m-%d %H-%M-%S')}},
+                {'date': {'$lte': date_end.strftime('%Y-%m-%d %H-%M-%S')}},
                 {'value': {'$gte': 0}}
             ]
         }},
@@ -154,7 +154,8 @@ def get_background_pollution(
     ]
     background = defaultdict(dict)
     for entry in collection_measurements.aggregate(pipeline):
-        timestamp = entry['_id']['timestamp']
+        # the timestamp is 5h off the datetime date.
+        timestamp = entry['_id']['timestamp'] + 60*60*5
         pollutant = entry['_id']['pollutant']
         value = entry['value']
         background[timestamp][pollutant] = value
@@ -177,8 +178,8 @@ def get_station_measurements(
     pipeline = [
         {'$match': {
             '$and': [
-                {'timestamp': {'$gte': date_start.timestamp()}},
-                {'timestamp': {'$lte': date_end.timestamp()}},
+                {'date': {'$gte': date_start.strftime('%Y-%m-%d %H-%M-%S')}},
+                {'date': {'$lte': date_end.strftime('%Y-%m-%d %H-%M-%S')}},
                 {'value': {'$gte': 0}},
                 {'site': station_name}
             ]
@@ -186,7 +187,8 @@ def get_station_measurements(
     ]
     measurements = defaultdict(dict)
     for entry in collection_measurements.aggregate(pipeline):
-        timestamp = entry['timestamp']
+        # the timestamp is 5h off the datetime date.
+        timestamp = entry['timestamp'] + 60*60*5
         pollutant = entry['pollutant']
         value = entry['value']
         measurements[timestamp][pollutant] = value

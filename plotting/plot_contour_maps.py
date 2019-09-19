@@ -52,25 +52,33 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 08 - 30
+    2019 - 09 - 18
 
 """
 
 
 def get_parameters():
-    """
-    :return:
-    """
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
-        'case': 'Demo',
-        'date_start': datetime.datetime(2017, 10, 22, 0),
-        'date_end': datetime.datetime(2017, 10, 23, 0),
-        'iteration': 1,
+        'case': 'Dublin',
+        'date_start': datetime.datetime(2017, 9, 15, 12),
+        'date_end': datetime.datetime(2017, 9, 15, 12),
+        'iteration': 4,
         'pollutants': ['NO2'],
-        'resolution': 150,
+        'resolution': 500,
+        'show diff': True,
+        'with background': True
     }
     return param
+
+
+def get_collections(port=27018):
+    client = pymongo.MongoClient('localhost', port=port)
+    collections = {'ml': client.db_air_quality.ml_estimates_dublin,
+                   'util': client.db_air_quality.util,
+                   'station':client.db_air_quality.pollution_measurements,
+                   'caline': client.db_air_quality.caline_estimates}
+    return collections
 
 
 class MidpointNormalize(Normalize):
@@ -97,6 +105,18 @@ class MidpointNormalize(Normalize):
 
 
 def plot_heatmap(date, **kwargs):
+
+    print('Getting background pollution data ...')
+    background_pollution = uda.get_background_pollution(
+        collection_measurements=collection_measurement,
+        date_start=date,
+        date_end=date + datetime.timedelta(hours=1)
+    )
+    background = dict()
+    for timestamp, pollution_values in background_pollution.items():
+        for pollutant, value in pollution_values.items():
+            background[pollutant] = value
+
     print('Getting Caline estimates ...')
     caline_estimates, receptor_list = uda.get_estimates(
         collection_estimates=collection_caline_estimates,
@@ -111,8 +131,11 @@ def plot_heatmap(date, **kwargs):
     for _, receptor_values in caline_estimates.items():
         for coord, pollution_values in receptor_values.items():
             for pollutant, value in pollution_values.items():
-                caline_data[pollutant].append(list(coord) + [value])
-                caline_dict[pollutant][coord] = value
+                c_value = value
+                if kwargs['with background']:
+                    c_value += background[pollutant]
+                caline_data[pollutant].append(list(coord) + [c_value])
+                caline_dict[pollutant][coord] = c_value
 
     print('Getting MLP estimates ...')
     ml_filter = {
@@ -134,9 +157,12 @@ def plot_heatmap(date, **kwargs):
     for _, receptor_values in ml_estimates.items():
         for coord, pollution_values in receptor_values.items():
             for pollutant, value in pollution_values.items():
-                ml_data[pollutant].append(list(coord) + [value])
+                ml_value = value
+                if kwargs['with background']:
+                    ml_value += background[pollutant]
+                ml_data[pollutant].append(list(coord) + [ml_value])
                 diff[pollutant].append(
-                    list(coord) + [caline_dict[pollutant][coord] - value]
+                    list(coord) + [caline_dict[pollutant][coord] - ml_value]
                 )
 
     print('Plotting heatmap ...')
@@ -168,59 +194,90 @@ def plot_heatmap(date, **kwargs):
                             (d_xi[None, :], d_yi[:, None]),
                             method='nearest')
 
+        min_z = np.floor(np.min([zi, ml_zi]))
+        max_z = np.ceil(np.max([zi, ml_zi]))
+
+        levels = np.linspace(min_z, max_z, 15, endpoint=True)
+
         # Layout of the plot:
         #
         # Caline estimates. differences
         # position map    . ML estimates
 
-        fig = plt.figure(figsize=(15, 10))
+        if kwargs['show diff']:
+            figsize = (15, 10)
+        else:
+            figsize = (15, 6)
+        fig = plt.figure(figsize=figsize)
         st = plt.suptitle(
             'Pollution estimates for ' + kwargs['case'] + ' for ' + str(date)
             + '\n'
-            + poll + ' concentration levels in [micrograms/m3]',
+            + poll + ' concentration levels in [$\mu g/m^3$]',
             fontsize='x-large'
         )
 
-        sub1 = fig.add_subplot(2, 2, 1)
+        if kwargs['show diff']:
+            sub1 = fig.add_subplot(2, 2, 1)
+        else:
+            sub1 = fig.add_subplot(1, 2, 1)
         sub1.set_title('Caline estimates')
-        plt.contour(xi, yi, zi, 10, linewidths=0.5, colors='k')
-        plt.contourf(xi, yi, zi, 15, cmap='YlOrRd')
-        plt.colorbar()
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
+        sub1.contour(xi, yi, zi, 10, linewidths=0.01, colors='k')
+        c1 = sub1.contourf(xi, yi, zi, levels=levels,
+                           cmap='YlOrRd',
+                           vmin=min_z,
+                           vmax=max_z)
+        sub1.set_xlabel('Longitude')
+        sub1.set_ylabel('Latitude')
+        c1.set_clim(vmin=min_z, vmax=max_z)
+        fig.colorbar(c1, ax=sub1)
 
-        sub2 = fig.add_subplot(2, 2, 2)
-        sub2.set_title('Differences between Caline and ML estimates')
-        plt.contour(d_xi, d_yi, d_zi, 10, linewidths=0.5, colors='k')
-        plt.contourf(d_xi, d_yi, d_zi, 15,
-                     cmap='seismic',
-                     norm=MidpointNormalize(
-                         vmin=np.min(d_zi),
-                         vmax=np.max(d_zi),
-                         midpoint=0
-                     ))
-        plt.colorbar()
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
+        if kwargs['show diff']:
+            sub2 = fig.add_subplot(2, 2, 2)
+            sub2.set_title('Differences between Caline and ML estimates')
+            sub2.contour(d_xi, d_yi, d_zi, 10, linewidths=0.01, colors='k')
+            c2 = sub2.contourf(d_xi, d_yi, d_zi, 15,
+                               cmap='seismic',
+                               norm=MidpointNormalize(
+                                   vmin=np.min(d_zi),
+                                   vmax=np.max(d_zi),
+                                   midpoint=0
+                               ))
+            sub2.set_xlabel('Longitude')
+            sub2.set_ylabel('Latitude')
+            fig.colorbar(c2, ax=sub2)
+
+        print(f'MAE of difference: '
+              f'{np.mean(np.abs(d_zi))} +- {np.std(np.abs(d_zi))}')
 
         # sub3 = fig.add_subplot(2, 2, 3)
         # plot_receptor_map()
 
-        sub4 = fig.add_subplot(2, 2, 4)
+        if kwargs['show diff']:
+            sub4 = fig.add_subplot(2, 2, 4)
+        else:
+            sub4 = fig.add_subplot(1, 2, 2)
         sub4.set_title('ML estimates after ' + str(kwargs['iteration'])
-                       + ' iteration(s)')
-        plt.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.5, colors='k')
-        plt.contourf(ml_xi, ml_yi, ml_zi, 15, cmap='YlOrRd')
-        plt.colorbar()
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
+                       + ' iterations')
+        sub4.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.01, colors='k')
+        c4 = sub4.contourf(ml_xi, ml_yi, ml_zi, levels=levels,
+                           cmap='YlOrRd',
+                           vmin=min_z,
+                           vmax=max_z)
+        sub4.set_xlabel('Longitude')
+        sub4.set_ylabel('Latitude')
+        c4.set_clim(vmin=min_z, vmax=max_z)
+        fig.colorbar(c4, ax=sub4)
 
         # shift subplots down:
-        st.set_y(0.95)
-        fig.subplots_adjust(top=0.85, hspace=0.3)
+        if kwargs['show diff']:
+            st.set_y(0.95)
+            fig.subplots_adjust(top=0.85, hspace=0.3)
+        else:
+            st.set_y(0.95)
+            fig.subplots_adjust(top=0.8, left=0.1, right=0.95)
 
         plt.savefig(
-            img_path + 'contour_maps/' + poll + '/'
+            img_path + 'contour_maps/' + poll + '/' + kwargs['case'] + '/'
             + kwargs['case']
             + '_' + str(kwargs['iteration'])
             + '_' + date.strftime('%Y-%m-%d_%H')
@@ -235,18 +292,18 @@ def plot_heatmap(date, **kwargs):
 
 if __name__ == '__main__':
 
-    benchmark_path = '../output/benchmarks/'
     img_path = '../output/img/'
 
     """ connect to internal Mongo database """
-    client = pymongo.MongoClient('localhost', 27018)
-    # 2017-07-01 01:00:00 to 2018-05-02 14:00:00
-    collection_measurement = client.db_air_quality.pollution_measurements
-    collection_caline_estimates = client.db_air_quality.caline_estimates
-    collection_estim = client.db_air_quality.ml_estimates
-    collection_util = client.db_air_quality.util
+    collections = get_collections()
+    collection_measurement = collections['station']
+    collection_caline_estimates = collections['caline']
+    collection_estim = collections['ml']
+    collection_util = collections['util']
 
     parameters = get_parameters()
+
+    print(f'Plotting contour plots for {parameters["case"]}.')
 
     date_start = parameters['date_start']
     date_end = parameters['date_end']
