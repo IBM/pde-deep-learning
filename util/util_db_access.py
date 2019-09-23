@@ -225,11 +225,14 @@ def get_estimates(
         timestamp = entry['timestamp']
         coord = tuple(entry['coord'])
         poll = entry['pollutant']
+        value = entry['value']
         if timestamp not in estimates:
             estimates[timestamp] = {}
         if coord not in estimates[timestamp]:
             estimates[timestamp][coord] = {}
-        estimates[timestamp][coord][poll] = entry['value']
+        if poll in ['PM10', 'PM25']:
+            value *= 1000  # correct Caline unit error from milli to micro
+        estimates[timestamp][coord][poll] = value
 
         if coord not in receptor_list:
             receptor_list.append(coord)
@@ -267,7 +270,10 @@ def get_estimates_for_receptor(
     for entry in collection_estimates.aggregate(pipeline):
         timestamp = entry['timestamp']
         poll = entry['pollutant']
-        estimates[timestamp][poll] = entry['value']
+        value = entry['value']
+        if poll in ['PM10', 'PM25']:
+            value *= 1000  # correct Caline unit error from milli to micro
+        estimates[timestamp][poll] = value
 
     return estimates
 

@@ -59,22 +59,22 @@ def get_parameters():
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         'date_start': datetime.datetime(2017, 8, 7, 0),
-        'period': datetime.timedelta(days=3),
-        'receptor_coord': None,  # [53.34421064496467, -6.26476486860426],
+        'period': datetime.timedelta(weeks=4),
+        # If None, plots for receptors placed with 'contour_distance' are made.
+        'receptor_coord': [53.34793989479807, -6.26312682482776],  # [53.34421064496467, -6.26476486860426],
         'station_name': 'Winetavern St Civic Offices',
         # Plot receptors that were placed at (multiples of) this distance.
         # For the Demo, the smallest distance is 5, for Dublin it is 6.
-        'contour_distance': 6,
-        'iteration': 4,
-        # is appended to file name:
-        'pollutants': ['NO2']
+        'contour_distance': 5,
+        'iteration': 10,
+        'pollutants': ['PM10']
     }
     return param
 
 
 def get_collections(port=27018):
     client = pymongo.MongoClient('localhost', port=port)
-    collections = {'ml': client.db_air_quality.ml_estimates_dublin,
+    collections = {'ml': client.db_air_quality.ml_estimates_cc_PM10,
                    'util': client.db_air_quality.util,
                    'station':client.db_air_quality.pollution_measurements,
                    'caline': client.db_air_quality.caline_estimates}
@@ -209,14 +209,16 @@ def plot_timeseries(
 
         seconds_in_day = 60*60*24
         seconds_in_week = seconds_in_day * 7
-        if kwargs['period'] < datetime.timedelta(days=10):
+        if period < datetime.timedelta(days=10):
             steps_x = seconds_in_day
+            step = 1
         else:
             steps_x = seconds_in_week
+            step = 7
 
         loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, steps_x))
         label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
-                            dtype='datetime64[D]', step=1)
+                            dtype='datetime64[D]', step=step)
         label_y_min = 10 * int((min_y - 1) / 10)
         label_y_max = int(1.05 * max_y)
         steps = 10
@@ -266,7 +268,7 @@ def plot_timeseries(
 
         loc_x = list(np.arange(x.min(), x.max() + 2 * 60*60, steps_x))
         label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
-                            dtype='datetime64[D]', step=1)
+                            dtype='datetime64[D]', step=step)
         label_y_min = 2 * int((min_y - 1) / 2)
         label_y_max = 1.05 * max_y
         steps = max(int((label_y_max - label_y_min) / 6), 1)
