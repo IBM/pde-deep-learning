@@ -4,6 +4,14 @@ Consider a complex non-linear forecasting problem, e.g. from weather- and air po
 
 If you use the code, please also cite our paper: https://arxiv.org/abs/1810.09425
 
+  @article{haehnel2020using,
+    title={Using Deep Learning to Extend the Range of Air-Pollution Monitoring and Forecasting},
+    author={Haehnel, Philipp and Marecek, Jakub and Monteil, Julien and O'Donncha, Fearghal},
+    journal={Journal of Computational Physics},
+    pages={to appear},
+    year={2020}
+  }
+
 The databases are currently not supplemented since they are proprietary. We are working on providing artificially generated replacements. 
 
 Any questions can be directed to Philipp Hähnel, `phahnel [at] hsph.harvard.edu`.
