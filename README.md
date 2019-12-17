@@ -12,7 +12,7 @@ If you use the code, please also cite our paper: https://arxiv.org/abs/1810.0942
     year={2020}
   }`
 
-The databases are currently not supplemented since they are proprietary. We are working on providing artificially generated replacements. 
+The data for the Dublin use case are currently not available since they are proprietary. We are working on providing artificially-generated replacements. 
 
 Any questions can be directed to Philipp Hähnel, `phahnel [at] hsph.harvard.edu`.
 
