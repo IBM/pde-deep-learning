@@ -44,7 +44,7 @@ Authors:
     Philipp Hähnel <phahnel@hsph.harvard.edu>
 
 Last updated:
-    2019 - 09 - 13
+    2020 - 01 - 15
 
 """
 
@@ -66,29 +66,29 @@ def get_parameters():
         'tiles': [6, 7],  # list of id's to be used in modeling
         # 'tiles': list(range(1, 12 + 1)),
         # model hyper-parameters
-        'num_iterations': 10,
+        'num_iterations': 20,
         'num_hidden_layers': 5,
         'num_nodes': 50,
         'num_epochs': 25,
         'batch_size': 128,
         'l2_reg_coefficient': 1e-4,  # weights are regularized with l2 norm
-        'starter_learning_rate': 1e-3,
-        'decay_factor': 0.88,  # exponential decay
+        'starter_learning_rate': 1e-3,  # higher values lead to initial divergence
+        'decay_factor': 0.85,  # exponential decay
         'train_to_test_split': 0.9,  # train_%
         'add_previous_labels_to_input': False,  # True is not a feature
         # ToDo: allow True in update of consistency constraint data
         # consistency constraints
         'use_consistency_constraints': True,
-        'cc_reg_coefficient': 1,  # lambda
+        'cc_reg_coefficient': 10,  # lambda
         'kappa': 0.5,
-        'epsilon': 0.1,
+        'epsilon': 0,
         'cc_update_version': 'version 3',
         # check util.util_consistency_constraints
         # saving of output
         'do_save_benchmark': True,
         'do_save_cc': True,
         'do_save_model': True,
-        'do_save_estimates': True,
+        'do_save_estimates': False,
         'iterations_to_save_estimates': [1, 5, 10, 20],  # 1-based
         'do_print_status': True,
         # for reproducibility
@@ -108,8 +108,8 @@ def get_collections(port=27018):
     """
     client_internal = pymongo.MongoClient('localhost', port=port)
     util = client_internal.db_air_quality.util
-    data = client_internal.db_air_quality.proc_estimates_PM10
-    predictions = client_internal.db_air_quality.ml_estimates_cc_PM10
+    data = client_internal.db_air_quality.proc_estimates_NO2
+    predictions = client_internal.db_air_quality.ml_estimates_cc_test
     collections = {'util': util,
                    'data': data,
                    'pred': predictions}
@@ -168,8 +168,11 @@ def main():
             print(f'Standard Deviation: {np.std(mlp_times):.6f}s')
             print('')
 
+    print(f'{datetime.strftime(datetime.now(), "%y.%m.%d-%H:%M:%S")}')
+
     return None
 
 
 if __name__ == '__main__':
-    main()
+    for _ in range(6):
+        main()
