@@ -5,7 +5,8 @@ except ImportError:
     import matplotlib
     matplotlib.use('PS')
     from matplotlib import pyplot as plt
-
+from matplotlib import rc
+rc('text', usetex=True)
 import pymongo
 
 import util.util_db_access as uda
@@ -58,10 +59,10 @@ def get_parameters():
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         # list of ID's of tiles to be plotted:
-        'sub_domain_selection': list(range(1, 12 + 1)),
-        # 'sub_domain_selection': [6, 7],
+        # 'sub_domain_selection': list(range(1, 12 + 1)),
+        'sub_domain_selection': [6, 7],
         # if stations are plotted:
-        'with_stations': True,
+        'with_stations': False,
         # plot each of the runs in 'tags' individually or combined:
         'individual': False,
         # is appended to file name:
@@ -88,7 +89,7 @@ def get_parameters():
         for dist in distances
     ]
     # Title of each plot. If plots are combined, only the last title is used.
-    param['titles'] = {dist: f'Map of Dublin.'
+    param['titles'] = {dist: f'Two-Domain example base on Dublin City Center.'
                        for dist in distances}
     return param
 
