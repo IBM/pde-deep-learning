@@ -9,7 +9,8 @@ except ImportError:
     import matplotlib
     matplotlib.use('PS')
     from matplotlib import pyplot as plt
-
+from matplotlib import rc
+rc('text', usetex=True)
 import numpy as np
 import pymongo
 import scipy as sp
@@ -66,7 +67,7 @@ def get_parameters():
         'iteration': 4,
         'pollutants': ['NO2'],
         'resolution': 500,
-        'show diff': True,
+        'show diff': False,
         'with background': True
     }
     return param
@@ -166,6 +167,11 @@ def plot_heatmap(date, **kwargs):
                 )
 
     print('Plotting heatmap ...')
+    poll_label = {
+        'NO2': 'NO$_2$',
+        'PM10': 'PM$_{10}$',
+        'PM25': 'PM$_{2.5}$'
+    }
     for p, poll in enumerate(kwargs['pollutants']):
 
         xi, yi, zi = [], [], []
@@ -205,14 +211,14 @@ def plot_heatmap(date, **kwargs):
         # position map    . ML estimates
 
         if kwargs['show diff']:
-            figsize = (15, 10)
+            figsize = (12, 8)
         else:
-            figsize = (15, 6)
+            figsize = (12, 5)
         fig = plt.figure(figsize=figsize)
         st = plt.suptitle(
             'Pollution estimates for ' + kwargs['case'] + ' for ' + str(date)
             + '\n'
-            + poll + ' concentration levels in [$\mu g/m^3$]',
+            + poll_label[poll] + ' concentration levels in [$\mu$g/cm$^3$]',
             fontsize='x-large'
         )
 
@@ -256,7 +262,7 @@ def plot_heatmap(date, **kwargs):
             sub4 = fig.add_subplot(2, 2, 4)
         else:
             sub4 = fig.add_subplot(1, 2, 2)
-        sub4.set_title('ML estimates after ' + str(kwargs['iteration'])
+        sub4.set_title('DL estimates after ' + str(kwargs['iteration'])
                        + ' iterations')
         sub4.contour(ml_xi, ml_yi, ml_zi, 10, linewidths=0.01, colors='k')
         c4 = sub4.contourf(ml_xi, ml_yi, ml_zi, levels=levels,
