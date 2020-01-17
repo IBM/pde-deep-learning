@@ -8,7 +8,8 @@ except ImportError:
     import matplotlib
     matplotlib.use('PS')
     from matplotlib import pyplot as plt
-
+from matplotlib import rc
+rc('text', usetex=True)
 import numpy as np
 import pymongo
 
@@ -59,25 +60,32 @@ def get_parameters():
     #  time slice (2017-07-01 01:00:00 to 2018-05-02 14:00:00)
     param = {
         'date_start': datetime.datetime(2017, 8, 7, 0),
-        'period': datetime.timedelta(weeks=4),
+        'period': datetime.timedelta(weeks=1),
         # If None, plots for receptors placed with 'contour_distance' are made.
-        'receptor_coord': [53.34793989479807, -6.26312682482776],  # [53.34421064496467, -6.26476486860426],
+        'receptor_coord': [53.34793989479807, -6.26312682482776],
+        # 'receptor_coord': [53.34421064496467, -6.26476486860426],
         'station_name': 'Winetavern St Civic Offices',
         # Plot receptors that were placed at (multiples of) this distance.
         # For the Demo, the smallest distance is 5, for Dublin it is 6.
         'contour_distance': 5,
         'iteration': 10,
-        'pollutants': ['PM10']
+        'pollutants': ['NO2', 'PM10']
     }
     return param
 
 
 def get_collections(port=27018):
     client = pymongo.MongoClient('localhost', port=port)
-    collections = {'ml': client.db_air_quality.ml_estimates_cc_PM10,
-                   'util': client.db_air_quality.util,
-                   'station':client.db_air_quality.pollution_measurements,
-                   'caline': client.db_air_quality.caline_estimates}
+    collections = {
+        'ml': {
+            'NO2': client.db_air_quality.ml_estimates_cc_NO2,
+            'PM10': client.db_air_quality.ml_estimates_cc_PM10,
+            'PM25': client.db_air_quality.ml_estimates_cc_PM25
+        },
+        'util': client.db_air_quality.util,
+        'station':client.db_air_quality.pollution_measurements,
+        'caline': client.db_air_quality.caline_estimates
+    }
     return collections
 
 
@@ -110,7 +118,8 @@ def plot_timeseries(
     background_pollution = uda.get_background_pollution(
         collection_measurements=collection_measurement,
         date_start=date_start,
-        date_end=date_end
+        date_end=date_end,
+        method='avg'
     )
     background_time_series = defaultdict(dict)
     for timestamp, pollution_values in background_pollution.items():
@@ -134,29 +143,47 @@ def plot_timeseries(
                 timestamps.append(t)
             caline_time_series[pollutant][t] = value
 
-    print('Getting MLP estimates ...')
-    ml_filter = {
-        'iteration': kwargs['iteration']
-        # 'settings.gamma': gamma,
-        # 'settings.kappa': kappa
-    }
-    ml_estimates = uda.get_estimates_for_receptor(
-        collection_estimates=collection_estim,
-        date_start=date_start,
-        date_end=date_end,
-        receptor_coord=receptor_coord,
-        **ml_filter
-    )
-    ml_time_series = defaultdict(dict)
-    for timestamp, pollution_values in ml_estimates.items():
-        for pollutant, value in pollution_values.items():
-            t = timestamp - timestamp_start
-            ml_time_series[pollutant][t] = value
-
     timestamps.sort()
 
-    print(f'Plotting time series for {site} ...')
+    poll_label = {
+        'NO2': 'NO$_2$',
+        'PM10': 'PM$_{10}$',
+        'PM25': 'PM$_{2.5}$'
+    }
+
+    num_subplots = 0
+    if 'NO2' in pollutants:
+        num_subplots += 1
+    if 'PM10' in pollutants:
+        num_subplots += 1
+    if 'PM25' in pollutants:
+        num_subplots += 1
+    fig = plt.figure(figsize=(10, 4*num_subplots))
+    subplot = 1
+
     for p, poll in enumerate(pollutants):
+        print(poll)
+
+        print('Getting MLP estimates ...')
+        ml_filter = {
+            'iteration': kwargs['iteration']
+            # 'settings.gamma': gamma,
+            # 'settings.kappa': kappa
+        }
+        ml_estimates = uda.get_estimates_for_receptor(
+            collection_estimates=collection_estim[poll],
+            date_start=date_start,
+            date_end=date_end,
+            receptor_coord=receptor_coord,
+            **ml_filter
+        )
+        ml_time_series = defaultdict(dict)
+        for timestamp, pollution_values in ml_estimates.items():
+            for pollutant, value in pollution_values.items():
+                t = timestamp - timestamp_start
+                ml_time_series[pollutant][t] = value
+
+        print(f'Plotting time series for {site} ...')
 
         if poll not in caline_time_series or poll not in ml_time_series:
             continue
@@ -188,26 +215,13 @@ def plot_timeseries(
 
         # plot timeseries
 
-        fig = plt.figure(figsize=(10, 10))
         # st = plt.suptitle('Pollution Data in Dublin City Center\n'
         #                   f'at receptor location {str(receptor_coord)},'
         #                   '\n'
         #                   'compared to measurement station '
         #                   f'at {um.get_stations()[station_name]}')
 
-        sub1 = fig.add_subplot(2, 1, 1)
-        station, = plt.plot(station_x, station_y, 'b.',
-                            label='Station measurements')
-        handles = [station]
-        if poll in caline_time_series:
-            caline, = plt.plot(x_plus, y_plus, 'r+', label='Caline estimates')
-            handles.append(caline)
-        if poll in ml_time_series:
-            label = f'ML estimates'  # + f' ({kwargs["iteration"]}. iter)'
-            mlp, = plt.plot(ml_x_plus, ml_y_plus, 'gx', label=label)
-            handles.append(mlp)
-
-        seconds_in_day = 60*60*24
+        seconds_in_day = 60 * 60 * 24
         seconds_in_week = seconds_in_day * 7
         if period < datetime.timedelta(days=10):
             steps_x = seconds_in_day
@@ -216,88 +230,107 @@ def plot_timeseries(
             steps_x = seconds_in_week
             step = 7
 
-        loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, steps_x))
-        label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
-                            dtype='datetime64[D]', step=step)
-        label_y_min = 10 * int((min_y - 1) / 10)
-        label_y_max = int(1.05 * max_y)
-        steps = 10
-        if label_y_max > 10:
-            label_y = list(range(label_y_min, label_y_max, steps))
-        else:
-            label_y = np.linspace(label_y_min, label_y_max, 6)
-        plt.xticks(loc_x, label_x)
-        plt.yticks(label_y, label_y)
-        sub1.set_xticks(x, minor=True)
-        sub1.grid(which='major')
+        if poll == 'NO2' or 'NO2' not in pollutants:
+            sub1 = fig.add_subplot(num_subplots, 1, subplot)
+            subplot += 1
+            station, = plt.plot(station_x, station_y, 'g.',
+                                label='Station measurements')
+            handles = [station]
+            if poll in caline_time_series:
+                caline, = plt.plot(x_plus, y_plus, 'r+', label='Caline estimates')
+                handles.append(caline)
+            if poll in ml_time_series:
+                label = f'DL estimates'  # + f' ({kwargs["iteration"]}. iter)'
+                mlp, = plt.plot(ml_x_plus, ml_y_plus, 'bx', label=label)
+                handles.append(mlp)
 
-        # plt.xlabel('Hours from ' + date_start.strftime('%Y-%m-%d %H:%M:%S'))
-        plt.ylabel(poll + ' concentration [$\mu g/m^3$]')
-        sub1.set_title('With background pollution')
-        plt.legend(handles=handles)
+            loc_x = list(np.arange(x_plus.min(), x_plus.max() + 2*60*60, steps_x))
+            label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
+                                dtype='datetime64[D]', step=step)
+            label_y_min = 10 * int((min_y - 1) / 10)
+            label_y_max = int(1.05 * max_y)
+            steps = 10
+            if label_y_max > 10:
+                label_y = list(range(label_y_min, label_y_max, steps))
+            else:
+                label_y = np.linspace(label_y_min, label_y_max, 6)
+            plt.xticks(loc_x, label_x)
+            plt.yticks(label_y, label_y)
+            sub1.set_xticks(x, minor=True)
+            sub1.grid(which='major', lw=0.2)
+
+            # plt.xlabel('Hours from ' + date_start.strftime('%Y-%m-%d %H:%M:%S'))
+            plt.ylabel(poll_label[poll] + ' concentration [$\mu$g/cm$^3$]')
+            # sub1.set_title('With background pollution')
+            plt.legend(handles=handles)
 
         # plot differences
 
-        station_y = np.array([
-            station_time_series[poll][time] - bg_y
-            for time, bg_y in background_time_series[poll].items()
-            if time in station_x
-        ])
+        if poll == 'PM10' or 'PM10' not in pollutants:
+            station_y = np.array([
+                station_time_series[poll][time] - bg_y
+                for time, bg_y in background_time_series[poll].items()
+                if time in station_x
+            ])
 
-        min_y = np.min([np.min(y), np.min(ml_y)])
-        max_y = np.max([np.max(y), np.max(ml_y)])
+            min_y = np.min([np.min(y), np.min(ml_y)])
+            max_y = np.max([np.max(y), np.max(ml_y)])
 
-        sub2 = fig.add_subplot(2, 1, 2)
-        handles = []
+            sub2 = fig.add_subplot(num_subplots, 1, subplot)
+            subplot += 1
+            handles = []
 
-        # clip station data to range of Caline and ML output
-        station_data = np.transpose([station_x, station_y])
-        clipped_data = [tup for tup in station_data if min_y < tup[1] < max_y]
-        if len(clipped_data):
-            [station_x, station_y] = np.transpose(clipped_data)
-            station, = plt.plot(station_x, station_y, 'b.',
-                                label='Station measurements')
-            handles.append(station)
-        if poll in caline_time_series:
-            caline, = plt.plot(x, y, 'r+', label='Caline estimates')
-            handles.append(caline)
-        if poll in ml_time_series:
-            label = f'ML estimates'  # + f' ({kwargs["iteration"]}. iter)'
-            mlp, = plt.plot(ml_x, ml_y, 'gx', label=label)
-            handles.append(mlp)
+            # clip station data to range of Caline and ML output
+            station_data = np.transpose([station_x, station_y])
+            clipped_data = [tup for tup in station_data if min_y < tup[1] < max_y]
+            if len(clipped_data) and False:
+                [station_x, station_y] = np.transpose(clipped_data)
+                station, = plt.plot(station_x, station_y, 'g.',
+                                    label='Station measurements')
+                handles.append(station)
+            if poll in caline_time_series:
+                caline, = plt.plot(x, y, 'r+', label='Caline estimates')
+                handles.append(caline)
+            if poll in ml_time_series:
+                label = f'DL estimates'  # + f' ({kwargs["iteration"]}. iter)'
+                mlp, = plt.plot(ml_x, ml_y, 'bx', label=label)
+                handles.append(mlp)
 
-        loc_x = list(np.arange(x.min(), x.max() + 2 * 60*60, steps_x))
-        label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
-                            dtype='datetime64[D]', step=step)
-        label_y_min = 2 * int((min_y - 1) / 2)
-        label_y_max = 1.05 * max_y
-        steps = max(int((label_y_max - label_y_min) / 6), 1)
-        if label_y_max > 10:
-            label_y = list(range(label_y_min, int(label_y_max), steps))
-        else:
-            label_y = np.linspace(label_y_min, label_y_max, 6)
-            label_y = [int(1000 * i) / 1000 for i in label_y]
-        plt.xticks(loc_x, label_x)
-        plt.yticks(label_y, label_y)
-        sub2.set_xticks(x, minor=True)
-        sub2.grid(which='major')
+            print(f'Average difference: {np.mean(np.abs(y - ml_y))} '
+                  f'+- {np.std(np.abs(y - ml_y))}')
 
-        # plt.xlabel('Hours from ' + date_start.strftime('%Y-%m-%d %H:%M:%S'))
-        plt.ylabel(poll + ' concentration [$\mu g/m^3$]')
-        sub2.set_title('Without background pollution')
-        plt.legend(handles=handles)
+            loc_x = list(np.arange(x.min(), x.max() + 2 * 60*60, steps_x))
+            label_x = np.arange(date_start.strftime('%Y-%m-%d'), '2018-05-03',
+                                dtype='datetime64[D]', step=step)
+            label_y_min = 2 * int((min_y - 1) / 2)
+            label_y_max = 1.05 * max_y
+            steps = max(int((label_y_max - label_y_min) / 6), 1)
+            if label_y_max > 10:
+                label_y = list(range(label_y_min, int(label_y_max), steps))
+            else:
+                label_y = np.linspace(label_y_min, label_y_max, 6)
+                label_y = [int(1000 * i) / 1000 for i in label_y]
+            plt.xticks(loc_x, label_x)
+            plt.yticks(label_y, label_y)
+            sub2.set_xticks(x, minor=True)
+            sub2.grid(which='major', lw=0.2)
 
-        # adjust spacing:
-        # st.set_y(0.97)
-        fig.subplots_adjust(hspace=0.3)
+            # plt.xlabel('Hours from ' + date_start.strftime('%Y-%m-%d %H:%M:%S'))
+            plt.ylabel(poll_label[poll] + ' concentration [$\mu$g/cm$^3$]')
+            # sub2.set_title('Without background pollution')
+            plt.legend(handles=handles)
 
-        plot_name = (
-            img_path + 'timeseries/timeseries_' + poll + '_'
-            + date_start.strftime('%Y-%m-%d_%H') + '_' + str(site)
-        )
-        plt.savefig(plot_name + '.pdf')
-        # plt.savefig(plot_name + '.png')
-        plt.close()
+    # adjust spacing:
+    # st.set_y(0.97)
+    fig.subplots_adjust(hspace=0.3)
+
+    plot_name = (
+        img_path + f'timeseries/timeseries_{pollutants}_'
+        + f'{date_start.strftime("%Y-%m-%d_%H")}_{site}'
+    )
+    plt.savefig(plot_name + '.pdf')
+    # plt.savefig(plot_name + '.png')
+    plt.close()
 
     print('Done.')
 
